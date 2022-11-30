@@ -25,6 +25,7 @@ import org.wildfly.prospero.api.exceptions.MetadataException;
 import org.wildfly.prospero.api.ProvisioningDefinition;
 import org.wildfly.prospero.api.exceptions.OperationException;
 import org.wildfly.prospero.galleon.FeaturePackLocationParser;
+import org.wildfly.prospero.galleon.GalleonArtifactExporter;
 import org.wildfly.prospero.galleon.GalleonEnvironment;
 import org.wildfly.prospero.galleon.GalleonUtils;
 import org.wildfly.prospero.galleon.ChannelMavenArtifactRepositoryManager;
@@ -99,6 +100,13 @@ public class ProvisioningAction {
         }
 
         writeProsperoMetadata(installDir, repositoryManager, galleonEnv.getChannelRefs(), repositories);
+
+        try {
+            new GalleonArtifactExporter().cacheGalleonArtifacts(provisioningDefinition.getProsperoConfig(),
+                    mavenSessionManager, installDir, galleonEnv.getProvisioningManager().getProvisioningConfig());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -129,6 +137,12 @@ public class ProvisioningAction {
         }
 
         writeProsperoMetadata(installDir, galleonEnv.getRepositoryManager(), channelRefs, repositories);
+
+        try {
+            new GalleonArtifactExporter().cacheGalleonArtifacts(prosperoConfig, mavenSessionManager, installDir, galleonEnv.getProvisioningManager().getProvisioningConfig());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private void writeProsperoMetadata(Path home, ChannelMavenArtifactRepositoryManager maven, List<ChannelRef> channelRefs,

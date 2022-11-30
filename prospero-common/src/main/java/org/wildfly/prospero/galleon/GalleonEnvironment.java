@@ -25,6 +25,7 @@ import org.jboss.galleon.layout.ProvisioningLayoutFactory;
 import org.wildfly.channel.Channel;
 import org.wildfly.channel.ChannelSession;
 import org.wildfly.channel.maven.VersionResolverFactory;
+import org.wildfly.channel.spi.MavenVersionsResolver;
 import org.wildfly.prospero.actions.Console;
 import org.wildfly.prospero.api.exceptions.OperationException;
 import org.wildfly.prospero.model.ChannelRef;
@@ -36,6 +37,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 public class GalleonEnvironment {
 
@@ -51,15 +53,16 @@ public class GalleonEnvironment {
 
         final RepositorySystem system = builder.mavenSessionManager.newRepositorySystem();
         final DefaultRepositorySystemSession session = builder.mavenSessionManager.newRepositorySystemSession(system);
-        final VersionResolverFactory factory = new VersionResolverFactory(system, session, builder.prosperoConfig.getRemoteRepositories());
-        final List<Channel> channels = new ChannelRefMapper(factory).mapToChannel(builder.prosperoConfig.getChannels());
+        final VersionResolverFactory wrappedFactory = new VersionResolverFactory(system, session, builder.prosperoConfig.getRemoteRepositories());
+        final List<Channel> channels = new ChannelRefMapper(wrappedFactory).mapToChannel(builder.prosperoConfig.getChannels());
+        final MavenVersionsResolver.Factory factory = new CachedVersionResolverFactory(wrappedFactory, builder.installDir, system, session);
         channelSession = new ChannelSession(channels, factory);
         if (restoreManifest.isEmpty()) {
             repositoryManager = new ChannelMavenArtifactRepositoryManager(channelSession);
         } else {
             repositoryManager = new ChannelMavenArtifactRepositoryManager(channelSession, restoreManifest.get());
         }
-        provisioningManager = GalleonUtils.getProvisioningManager(builder.installDir, repositoryManager);
+        provisioningManager = GalleonUtils.getProvisioningManager(builder.installDir, repositoryManager, builder.fpTracker);
 
         final ProvisioningLayoutFactory layoutFactory = provisioningManager.getLayoutFactory();
         if (console.isPresent()) {
@@ -99,6 +102,7 @@ public class GalleonEnvironment {
         private final Path installDir;
         private final ProsperoConfig prosperoConfig;
         private final MavenSessionManager mavenSessionManager;
+        public Consumer<String> fpTracker;
         private Console console;
         private Channel manifest;
 
@@ -115,6 +119,11 @@ public class GalleonEnvironment {
 
         public Builder setRestoreManifest(Channel manifest) {
             this.manifest = manifest;
+            return this;
+        }
+
+        public Builder setResolvedFpTracker(Consumer<String> fpTracker) {
+            this.fpTracker = fpTracker;
             return this;
         }
 

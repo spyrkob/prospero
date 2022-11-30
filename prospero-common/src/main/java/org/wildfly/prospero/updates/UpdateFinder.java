@@ -82,8 +82,8 @@ public class UpdateFinder implements AutoCloseable {
                 .flatMap(Optional::stream)
                 .collect(Collectors.toList());
 
-        final ProvisioningPlan fpUpdates = findFPUpdates();
-        return new UpdateSet(fpUpdates, updates);
+//        final ProvisioningPlan fpUpdates = findFPUpdates();
+        return new UpdateSet(new ProvisioningPlan(), updates);
     }
 
     private Optional<ArtifactChange> findUpdates(Artifact artifact) throws ArtifactResolutionException {
