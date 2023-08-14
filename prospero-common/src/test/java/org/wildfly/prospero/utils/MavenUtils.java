@@ -46,6 +46,7 @@ public class MavenUtils {
         repositorySystem = msm.newRepositorySystem();
         systemSession = msm.newRepositorySystemSession(repositorySystem);
     }
+
     public void deploy(ChannelManifest manifest, String groupId, String artifactId, String version, URL repository) throws DeploymentException, IOException {
         Path tempFile = null;
         try {

@@ -37,7 +37,7 @@ public class ChannelManifestSubstitutorTest {
         final ChannelManifestSubstitutor substitutor = new ChannelManifestSubstitutor(Map.of("propName", "propValue"));
         String expected = "file:propValue/examples/wildfly-27.0.0.Alpha2-manifest.yaml";
         Channel channel = new Channel("channel1", "", null, null, List.of(new Repository("test", "http://test.org")),
-                ChannelManifestCoordinate.create(url, null), null, null);
+                ChannelManifestCoordinate.create(url, null), null, null, false);
         Channel substitutedChannel = substitutor.substitute(channel);
         System.clearProperty("propName");
         assertEquals(expected, substitutedChannel.getManifestCoordinate().getUrl().toString());

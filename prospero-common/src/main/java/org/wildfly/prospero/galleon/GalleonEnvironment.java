@@ -18,6 +18,8 @@
 package org.wildfly.prospero.galleon;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.bouncycastle.openpgp.PGPException;
 import org.eclipse.aether.DefaultRepositorySystemSession;
 import org.eclipse.aether.RepositorySystem;
 import org.jboss.galleon.ProvisioningException;
@@ -31,6 +33,7 @@ import org.wildfly.channel.ChannelManifestMapper;
 import org.wildfly.channel.ChannelMetadataCoordinate;
 import org.wildfly.channel.ChannelSession;
 import org.wildfly.channel.InvalidChannelMetadataException;
+import org.wildfly.channel.MavenSignatureValidator;
 import org.wildfly.channel.UnresolvedMavenArtifactException;
 import org.wildfly.channel.maven.VersionResolverFactory;
 import org.wildfly.channel.spi.MavenVersionsResolver;
@@ -43,6 +46,7 @@ import org.wildfly.prospero.api.exceptions.OperationException;
 import org.wildfly.prospero.metadata.ManifestVersionRecord;
 import org.wildfly.prospero.wfchannel.MavenSessionManager;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -103,11 +107,27 @@ public class GalleonEnvironment implements AutoCloseable {
         final DefaultRepositorySystemSession session = builder.mavenSessionManager.newRepositorySystemSession(system);
         final Path sourceServerPath = builder.sourceServerPath == null? builder.installDir:builder.sourceServerPath;
         MavenVersionsResolver.Factory factory;
+        final MavenSignatureValidator signatureValidator;
         try {
-            factory = new CachedVersionResolverFactory(new VersionResolverFactory(system, session, MavenProxyHandler::addProxySettings), sourceServerPath, system, session);
+            signatureValidator = new MavenSignatureValidator(new File("/Users/spyrkob/workspaces/set/prospero/tmp/verify-sign/test-keys"),
+                    (key)->{
+                        System.out.println("Artifact signed with untrusted key: " + key);
+                        System.out.println("Accept y/N");
+                        try {
+                            System.in.read();
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                        return true;
+                    });
+        } catch (PGPException | IOException e) {
+            throw new RuntimeException(e);
+        }
+        try {
+            factory = new CachedVersionResolverFactory(new VersionResolverFactory(system, session, MavenProxyHandler::addProxySettings, signatureValidator), sourceServerPath, system, session);
         } catch (IOException e) {
             ProsperoLogger.ROOT_LOGGER.debug("Unable to read artifact cache, falling back to Maven resolver.", e);
-            factory = new VersionResolverFactory(system, session, MavenProxyHandler::addProxySettings);
+            factory = new VersionResolverFactory(system, session, MavenProxyHandler::addProxySettings, signatureValidator);
         }
 
         channelSession = initChannelSession(session, factory);
@@ -203,7 +223,8 @@ public class GalleonEnvironment implements AutoCloseable {
                         c.getRepositories(),
                         manifestCoord,
                         c.getBlocklistCoordinate(),
-                        c.getNoStreamStrategy()))
+                        c.getNoStreamStrategy(),
+                        false))
                 .collect(Collectors.toList());
         return channels;
     }
