@@ -33,7 +33,7 @@
         <prospero.repo.id>central</prospero.repo.id>
         <prospero.repo.url>https://repo1.maven.org/maven2/</prospero.repo.url>
         <prospero.channel.resolution.mode>NOT_REQUIRED</prospero.channel.resolution.mode>
-        <prospero.channel.manifest.artifactId>prospero-standalone-galleon-pack</prospero.channel.manifest.artifactId>
+        <prospero.channel.manifest.artifactId>prospero-standalone-%major%-%minor%</prospero.channel.manifest.artifactId>
         <prospero.channel.manifest.groupId>${project.groupId}</prospero.channel.manifest.groupId>
 
         <version.io.undertow>2.3.12.Final</version.io.undertow>
@@ -548,6 +548,50 @@
         </plugins>
     </build>
     <profiles>
+        <profile>
+            <id>upstream</id>
+            <activation>
+                <property>
+                    <name>activate.upstream</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <!-- change the prospero.channel.manifest.artifactId property to match the current project version major.minor -->
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>parse-version</id>
+                                <phase>initialize</phase>
+                                <goals>
+                                    <goal>parse-version</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>versions-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>parse-version</id>
+                                <phase>initialize</phase>
+                                <goals>
+                                    <goal>set-property</goal>
+                                </goals>
+                                <configuration>
+                                    <property>prospero.channel.manifest.artifactId</property>
+                                    <newVersion>prospero-standalone-${parsedVersion.majorVersion}.${parsedVersion.minorVersion}</newVersion>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
         <profile>
             <activation>
                 <property>

@@ -661,4 +661,60 @@
             </plugin>
         </plugins>
     </build>
+    <profiles>
+        <profile>
+            <id>upstream</id>
+            <activation>
+                <property>
+                    <name>activate.upstream</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <!-- install/deploy a prospero standalone manifest for current version -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-install-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <phase>install</phase>
+                                <goals>
+                                    <goal>install-file</goal>
+                                </goals>
+                                <configuration>
+                                    <groupId>${project.groupId}</groupId>
+                                    <artifactId>${prospero.channel.manifest.artifactId}</artifactId>
+                                    <classifier>manifest</classifier>
+                                    <packaging>yaml</packaging>
+                                    <version>${project.version}</version>
+                                    <file>${build.directory}/${project.artifactId}-${project.version}-manifest.yaml</file>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-deploy-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <phase>deploy</phase>
+                                <goals>
+                                    <goal>deploy-file</goal>
+                                </goals>
+                                <configuration>
+                                    <groupId>${project.groupId}</groupId>
+                                    <artifactId>${project.artifactId}-${parsedVersion.majorVersion}.${parsedVersion.minorVersion}</artifactId>
+                                    <classifier>manifest</classifier>
+                                    <packaging>yaml</packaging>
+                                    <version>${project.version}</version>
+                                    <file>${build.directory}/${project.artifactId}-${project.version}-manifest.yaml</file>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
