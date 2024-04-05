@@ -33,10 +33,12 @@ import org.wildfly.channel.ChannelManifestMapper;
 import org.wildfly.channel.ChannelMetadataCoordinate;
 import org.wildfly.channel.ChannelSession;
 import org.wildfly.channel.InvalidChannelMetadataException;
+import org.wildfly.channel.Keyring;
 import org.wildfly.channel.MavenSignatureValidator;
 import org.wildfly.channel.UnresolvedMavenArtifactException;
 import org.wildfly.channel.maven.VersionResolverFactory;
 import org.wildfly.channel.spi.MavenVersionsResolver;
+import org.wildfly.channel.spi.SignatureValidator;
 import org.wildfly.prospero.ProsperoLogger;
 import org.wildfly.prospero.api.Console;
 import org.wildfly.prospero.api.exceptions.ChannelDefinitionException;
@@ -44,9 +46,9 @@ import org.wildfly.prospero.api.exceptions.MetadataException;
 import org.wildfly.prospero.api.exceptions.UnresolvedChannelMetadataException;
 import org.wildfly.prospero.api.exceptions.OperationException;
 import org.wildfly.prospero.metadata.ManifestVersionRecord;
+import org.wildfly.prospero.metadata.ProsperoMetadataUtils;
 import org.wildfly.prospero.wfchannel.MavenSessionManager;
 
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -107,30 +109,26 @@ public class GalleonEnvironment implements AutoCloseable {
         final DefaultRepositorySystemSession session = builder.mavenSessionManager.newRepositorySystemSession(system);
         final Path sourceServerPath = builder.sourceServerPath == null? builder.installDir:builder.sourceServerPath;
         MavenVersionsResolver.Factory factory;
-        final MavenSignatureValidator signatureValidator;
         try {
-            signatureValidator = new MavenSignatureValidator(new File("/Users/spyrkob/workspaces/set/prospero/tmp/verify-sign/test-keys"),
-                    (key)->{
-                        System.out.println("Artifact signed with untrusted key: " + key);
-                        System.out.println("Accept y/N");
-                        try {
-                            System.in.read();
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                        return true;
-                    });
-        } catch (PGPException | IOException e) {
-            throw new RuntimeException(e);
-        }
-        try {
-            factory = new CachedVersionResolverFactory(new VersionResolverFactory(system, session, MavenProxyHandler::addProxySettings, signatureValidator), sourceServerPath, system, session);
+            factory = new CachedVersionResolverFactory(new VersionResolverFactory(system, session, MavenProxyHandler::addProxySettings), sourceServerPath, system, session);
         } catch (IOException e) {
             ProsperoLogger.ROOT_LOGGER.debug("Unable to read artifact cache, falling back to Maven resolver.", e);
-            factory = new VersionResolverFactory(system, session, MavenProxyHandler::addProxySettings, signatureValidator);
+            factory = new VersionResolverFactory(system, session, MavenProxyHandler::addProxySettings);
         }
 
-        channelSession = initChannelSession(session, factory);
+        try {
+            final Keyring keyring;
+            if (builder.keyring != null) {
+                keyring = builder.keyring;
+            } else {
+                keyring = new Keyring(sourceServerPath.resolve(ProsperoMetadataUtils.METADATA_DIR).resolve("keyring.gpg"));
+            }
+            channelSession = initChannelSession(session, factory, keyring);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (PGPException e) {
+            throw new RuntimeException(e);
+        }
 
         if (restoreManifest.isPresent()) {
             // try to load the manifests used by the state that's being reverted to
@@ -201,6 +199,27 @@ public class GalleonEnvironment implements AutoCloseable {
         }
     }
 
+    private static SignatureValidator getSignatureValidator(Keyring keyring) {
+        final SignatureValidator signatureValidator;
+        try {
+            signatureValidator = new MavenSignatureValidator(
+                    (key)->{
+                        System.out.println();
+                        System.out.println("Artifact signed with untrusted key: " + key);
+                        System.out.println("Accept y/N");
+                        try {
+                            System.in.read();
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                        return true;
+                    }, keyring);
+        } catch (PGPException | IOException e) {
+            throw new RuntimeException(e);
+        }
+        return signatureValidator;
+    }
+
     private List<Channel> replaceManifestWithRestoreManifests(Builder builder, Optional<ChannelManifest> restoreManifest) throws ProvisioningException {
         ChannelManifestCoordinate manifestCoord;
         try {
@@ -224,15 +243,16 @@ public class GalleonEnvironment implements AutoCloseable {
                         manifestCoord,
                         c.getBlocklistCoordinate(),
                         c.getNoStreamStrategy(),
-                        false))
+                        c.isGpgCheck(),
+                        c.getGpgUrl()))
                 .collect(Collectors.toList());
         return channels;
     }
 
-    private ChannelSession initChannelSession(DefaultRepositorySystemSession session, MavenVersionsResolver.Factory factory) throws UnresolvedChannelMetadataException, ChannelDefinitionException {
+    private ChannelSession initChannelSession(DefaultRepositorySystemSession session, MavenVersionsResolver.Factory factory, Keyring keyring) throws UnresolvedChannelMetadataException, ChannelDefinitionException {
         final ChannelSession channelSession;
         try {
-            channelSession = new ChannelSession(channels, factory);
+            channelSession = new ChannelSession(channels, factory, getSignatureValidator(keyring));
         } catch (UnresolvedMavenArtifactException e) {
             final Set<ChannelMetadataCoordinate> missingArtifacts = e.getUnresolvedArtifacts().stream()
                     .map(a -> new ChannelMetadataCoordinate(a.getGroupId(), a.getArtifactId(), a.getVersion(), a.getClassifier(), a.getExtension()))
@@ -295,6 +315,7 @@ public class GalleonEnvironment implements AutoCloseable {
         private final Path installDir;
         private final List<Channel> channels;
         private final MavenSessionManager mavenSessionManager;
+        public Keyring keyring;
         private Console console;
         private ChannelManifest manifest;
         private Consumer<String> fpTracker;
@@ -367,6 +388,11 @@ public class GalleonEnvironment implements AutoCloseable {
 
         public Path getSourceServerPath() {
             return sourceServerPath;
+        }
+
+        public Builder setKeyring(Keyring keyring) {
+            this.keyring = keyring;
+            return this;
         }
     }
 }

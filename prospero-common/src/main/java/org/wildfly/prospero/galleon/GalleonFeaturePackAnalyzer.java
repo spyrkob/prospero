@@ -23,6 +23,7 @@ import org.jboss.galleon.ProvisioningException;
 import org.jboss.galleon.util.HashUtils;
 import org.jboss.logging.Logger;
 import org.wildfly.channel.Channel;
+import org.wildfly.channel.Keyring;
 import org.wildfly.channel.MavenArtifact;
 import org.wildfly.channel.UnresolvedMavenArtifactException;
 import org.wildfly.prospero.api.exceptions.OperationException;
@@ -44,10 +45,18 @@ public class GalleonFeaturePackAnalyzer {
 
     private final List<Channel> channels;
     private final MavenSessionManager mavenSessionManager;
+    private final Keyring keyring;
 
     public GalleonFeaturePackAnalyzer(List<Channel> channels, MavenSessionManager mavenSessionManager) {
         this.channels = channels;
         this.mavenSessionManager = mavenSessionManager;
+        this.keyring = null;
+    }
+
+    public GalleonFeaturePackAnalyzer(List<Channel> channels, MavenSessionManager mavenSessionManager, Keyring keyring) {
+        this.channels = channels;
+        this.mavenSessionManager = mavenSessionManager;
+        this.keyring = keyring;
     }
 
     /**
@@ -143,6 +152,7 @@ public class GalleonFeaturePackAnalyzer {
                 .setSourceServerPath(sourcePath)
                 .setProvisioningConfig(provisioningConfig)
                 .setResolvedFpTracker(fps::add)
+                .setKeyring(keyring)
                 .build();
         return galleonEnv;
     }

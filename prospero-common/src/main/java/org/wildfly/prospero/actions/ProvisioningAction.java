@@ -18,11 +18,13 @@
 package org.wildfly.prospero.actions;
 
 import org.apache.commons.lang3.StringUtils;
+import org.bouncycastle.openpgp.PGPException;
 import org.eclipse.aether.resolution.ArtifactResult;
 import org.jboss.galleon.universe.maven.MavenUniverseException;
 import org.wildfly.channel.ArtifactCoordinate;
 import org.wildfly.channel.Channel;
 import org.wildfly.channel.ChannelManifest;
+import org.wildfly.channel.Keyring;
 import org.wildfly.channel.Repository;
 import org.wildfly.channel.UnresolvedMavenArtifactException;
 import org.wildfly.prospero.ProsperoLogger;
@@ -71,6 +73,8 @@ public class ProvisioningAction {
     private final Console console;
     private final LicenseManager licenseManager;
     private final MavenOptions mvnOptions;
+    private Path tempKeyringPath;
+    private Keyring keyring;
 
     public ProvisioningAction(Path installDir, MavenOptions mvnOptions, Console console) throws ProvisioningException {
         this.installDir = installDir;
@@ -123,6 +127,7 @@ public class ProvisioningAction {
                 .builder(installDir, channels, mavenSessionManager, false)
                 .setConsole(console)
                 .setProvisioningConfig(provisioningConfig)
+                .setKeyring(getKeyring())
                 .build()) {
 
             try {
@@ -135,6 +140,12 @@ public class ProvisioningAction {
             } catch (UnresolvedMavenArtifactException e) {
                 throw new ArtifactResolutionException(ProsperoLogger.ROOT_LOGGER.unableToResolve(), e, e.getUnresolvedArtifacts(),
                         e.getAttemptedRepositories(), mavenSessionManager.isOffline());
+            }
+
+            try {
+                Files.copy(tempKeyringPath, installDir.resolve(ProsperoMetadataUtils.METADATA_DIR).resolve("keyring.gpg"));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
 
             final ManifestVersionRecord manifestRecord;
@@ -166,7 +177,7 @@ public class ProvisioningAction {
 
 
         try {
-            final GalleonFeaturePackAnalyzer galleonFeaturePackAnalyzer = new GalleonFeaturePackAnalyzer(channels, mavenSessionManager);
+            final GalleonFeaturePackAnalyzer galleonFeaturePackAnalyzer = new GalleonFeaturePackAnalyzer(channels, mavenSessionManager, getKeyring());
 
             if (ProsperoLogger.ROOT_LOGGER.isDebugEnabled()) {
                 ProsperoLogger.ROOT_LOGGER.debug("Recording accepted licenses");
@@ -208,8 +219,20 @@ public class ProvisioningAction {
         Objects.requireNonNull(provisioningConfig);
         Objects.requireNonNull(channels);
 
-        final GalleonFeaturePackAnalyzer exporter = new GalleonFeaturePackAnalyzer(channels, mavenSessionManager);
+        final GalleonFeaturePackAnalyzer exporter = new GalleonFeaturePackAnalyzer(channels, mavenSessionManager, getKeyring());
         return getPendingLicenses(provisioningConfig, exporter);
+    }
+
+    private Keyring getKeyring() {
+        if (this.keyring == null) {
+            try {
+                tempKeyringPath = Files.createTempFile("keystore", "gpg");
+                keyring = new Keyring(tempKeyringPath);
+            } catch (IOException | PGPException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return this.keyring;
     }
 
     private List<License> getPendingLicenses(GalleonProvisioningConfig provisioningConfig, GalleonFeaturePackAnalyzer exporter) throws OperationException {
@@ -249,7 +272,7 @@ public class ProvisioningAction {
             if (StringUtils.isEmpty(c.getName())) {
                 return new Channel(c.getSchemaVersion(), CHANNEL_NAME_PREFIX + channelCounter.getAndIncrement(), c.getDescription(),
                         c.getVendor(), c.getRepositories(),
-                        c.getManifestCoordinate(), c.getBlocklistCoordinate(), c.getNoStreamStrategy(), c.isGpgCheck());
+                        c.getManifestCoordinate(), c.getBlocklistCoordinate(), c.getNoStreamStrategy(), c.isGpgCheck(), c.getGpgUrl());
             } else {
                 return c;
             }

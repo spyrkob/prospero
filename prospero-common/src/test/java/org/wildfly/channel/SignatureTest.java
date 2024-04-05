@@ -84,9 +84,9 @@ public class SignatureTest {
         final Path publicKeyFolder = temp.newFolder("public-keys").toPath();
         SignatureUtils.exportPublicKeys(pgpSecretKey, publicKeyFolder.resolve("test-key.gpg").toFile());
 
-        final MavenSignatureValidator signatureValidator = new MavenSignatureValidator(publicKeyFolder.toFile());
+        final MavenSignatureValidator signatureValidator = new MavenSignatureValidator((s)->true, new Keyring(publicKeyFolder.resolve("keyring.gpg")));
         final ChannelSession session = new ChannelSession(channels, new VersionResolverFactory(repositorySystem, repositorySession,
-                VersionResolverFactory.DEFAULT_REPOSITORY_MAPPER, signatureValidator));
+                VersionResolverFactory.DEFAULT_REPOSITORY_MAPPER), signatureValidator);
 
         session.resolveMavenArtifact("com.test.sign", "test-app", "jar", null, "");
     }
@@ -117,9 +117,9 @@ public class SignatureTest {
         final Path publicKeyFolder = temp.newFolder("public-keys").toPath();
         SignatureUtils.exportPublicKeys(pgpSecretKey, publicKeyFolder.resolve("test-key.gpg").toFile());
 
-        final MavenSignatureValidator signatureValidator = new MavenSignatureValidator(publicKeyFolder.toFile());
+        final MavenSignatureValidator signatureValidator = new MavenSignatureValidator((s)->true, new Keyring(publicKeyFolder.resolve("keyring.gpg")));
         final ChannelSession session = new ChannelSession(channels, new VersionResolverFactory(repositorySystem, repositorySession,
-                VersionResolverFactory.DEFAULT_REPOSITORY_MAPPER, signatureValidator));
+                VersionResolverFactory.DEFAULT_REPOSITORY_MAPPER));
 
         // corrupt the artifact
         final File corruptedJarFile = temp.newFile("corrupted-test.jar");
@@ -157,12 +157,12 @@ public class SignatureTest {
         SignatureUtils.exportPublicKeys(pgpSecretKey, publicKeyFolder.resolve("test-key.gpg").toFile());
 
         final ArrayList<String> signatures = new ArrayList<>();
-        final MavenSignatureValidator signatureValidator = new MavenSignatureValidator(publicKeyFolder.toFile(), (s)->{
+        final MavenSignatureValidator signatureValidator = new MavenSignatureValidator((s)->{
             signatures.add(s);
             return true;
-        });
+        }, new Keyring(publicKeyFolder.resolve("keyring.gpg")));
         final ChannelSession session = new ChannelSession(channels, new VersionResolverFactory(repositorySystem, repositorySession,
-                VersionResolverFactory.DEFAULT_REPOSITORY_MAPPER, signatureValidator));
+                VersionResolverFactory.DEFAULT_REPOSITORY_MAPPER));
 
         session.resolveMavenArtifact("com.test.sign", "test-app", "jar", null, "");
 
@@ -196,12 +196,12 @@ public class SignatureTest {
         SignatureUtils.exportPublicKeys(pgpSecretKey, publicKeyFolder.resolve("test-key.gpg").toFile());
 
         final ArrayList<String> signatures = new ArrayList<>();
-        final MavenSignatureValidator signatureValidator = new MavenSignatureValidator(publicKeyFolder.toFile(), (s)->{
+        final MavenSignatureValidator signatureValidator = new MavenSignatureValidator((s)->{
             signatures.add(s);
             return true;
-        });
+        }, new Keyring(publicKeyFolder.resolve("keyring.gpg")));
         final ChannelSession session = new ChannelSession(channels, new VersionResolverFactory(repositorySystem, repositorySession,
-                VersionResolverFactory.DEFAULT_REPOSITORY_MAPPER, signatureValidator));
+                VersionResolverFactory.DEFAULT_REPOSITORY_MAPPER), signatureValidator);
 
         session.resolveMavenArtifact("com.test.sign", "test-app", "jar", null, "");
 

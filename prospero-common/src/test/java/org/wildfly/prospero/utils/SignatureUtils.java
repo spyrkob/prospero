@@ -21,6 +21,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -92,8 +93,8 @@ public class SignatureUtils {
         final List<PGPPublicKey> pubKeyList = new ArrayList<>();
         pgpSecretKey.getPublicKeys().forEachRemaining(pubKeyList::add);
         PGPPublicKeyRing pubKeyRing = new PGPPublicKeyRing(pubKeyList);
-        try (FileOutputStream outStream = new FileOutputStream(targetFile)) {
-            pubKeyRing.encode(outStream);
+        try (OutputStream outStream = new ArmoredOutputStream(new FileOutputStream(targetFile))) {
+            pubKeyRing.encode(outStream, true);
         }
     }
 }
