@@ -22,7 +22,9 @@ import java.util.List;
 import java.util.Optional;
 
 import org.wildfly.channel.Channel;
+import org.wildfly.prospero.actions.ChannelStatusAction;
 import org.wildfly.prospero.actions.MetadataAction;
+import org.wildfly.prospero.api.ChannelVersions;
 import org.wildfly.prospero.cli.ActionFactory;
 import org.wildfly.prospero.cli.CliConsole;
 import org.wildfly.prospero.cli.CliMessages;
@@ -120,5 +122,45 @@ public class ChannelCommand extends AbstractCommand {
         }
     }
 
+    @CommandLine.Command(name = "status")
+    public static class ChannelStatusCommand extends AbstractCommand {
+
+        @CommandLine.Option(names = CliConstants.DIR)
+        private Optional<Path> directory;
+
+        public ChannelStatusCommand(CliConsole console, ActionFactory actionFactory) {
+            super(console, actionFactory);
+        }
+
+        @Override
+        public Integer call() throws Exception {
+            final Path installationDir = determineInstallationDirectory(directory);
+            final ChannelStatusAction channelStatusAction = new ChannelStatusAction(installationDir);
+
+            final List<ChannelVersions> channelsStatus = channelStatusAction.getChannelsStatus();
+
+            console.println(CliMessages.MESSAGES.serverVersionsHeader());
+
+            for (ChannelVersions status : channelsStatus) {
+                final String statusText;
+                switch (status.getStatus()) {
+                    case FULL:
+                        statusText = "ACTIVE (FULL)";
+                        break;
+                    case PARTIAL:
+                        statusText = "ACTIVE (PARTIAL)";
+                        break;
+                    case NONE:
+                        statusText = "INACTIVE";
+                        break;
+                    default:
+                        statusText = "UNKNOWN";
+                        break;
+                }
+                System.out.printf(" * %-20s %-50s %-25s %-15s%n", status.getName(), status.getMavenCoord(), status.getVersion(), statusText);
+            }
+            return ReturnCodes.SUCCESS;
+        }
+    }
 
 }
