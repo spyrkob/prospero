@@ -37,7 +37,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
+import java.net.URI;
 import java.net.URLConnection;
 import java.util.Iterator;
 import java.util.function.Function;
@@ -163,9 +163,17 @@ public class MavenSignatureValidator implements SignatureValidator {
 
     private static PGPPublicKey downloadPublicKey(String signatureUrl) {
         try {
-            final URLConnection urlConnection = new URL(signatureUrl).openConnection();
-            urlConnection.connect();
-            try (InputStream decoderStream = new ArmoredInputStream(urlConnection.getInputStream())) {
+            final URI uri = URI.create(signatureUrl);
+            final InputStream inputStream;
+            if (uri.getScheme().equals("classpath")) {
+                final String keyPath = uri.getSchemeSpecificPart();
+                inputStream = MavenSignatureValidator.class.getClassLoader().getResourceAsStream(keyPath);
+            } else {
+                final URLConnection urlConnection = uri.toURL().openConnection();
+                urlConnection.connect();
+                inputStream = urlConnection.getInputStream();
+            }
+            try (InputStream decoderStream = new ArmoredInputStream(inputStream)) {
                 final PGPPublicKeyRing pgpPublicKeys = new PGPPublicKeyRing(decoderStream, new JcaKeyFingerprintCalculator());
                 return pgpPublicKeys.getPublicKey();
             }

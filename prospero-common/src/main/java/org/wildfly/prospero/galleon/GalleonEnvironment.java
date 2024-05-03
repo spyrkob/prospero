@@ -18,7 +18,6 @@
 package org.wildfly.prospero.galleon;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.bouncycastle.openpgp.PGPException;
 import org.eclipse.aether.DefaultRepositorySystemSession;
 import org.eclipse.aether.RepositorySystem;
