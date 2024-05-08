@@ -76,13 +76,12 @@ public class GalleonFeaturePackAnalyzer {
 
         try (GalleonEnvironment galleonEnv = galleonEnvWithFpMapper(tempInstallationPath, installedDir, fps, provisioningConfig)) {
             final ArtifactCache artifactCache = ArtifactCache.getInstance(installedDir);
-            try (Provisioning pm = galleonEnv.getProvisioning()) {
-                final Set<String> pluginGavs = pm.getOrderedFeaturePackPluginLocations(provisioningConfig);
-                for (String pluginGav : pluginGavs) {
-                    final String[] pluginLoc = pluginGav.split(":");
-                    final MavenArtifact jar = galleonEnv.getChannelSession().resolveMavenArtifact(pluginLoc[0], pluginLoc[1], "jar", null, null);
-                    artifactCache.cache(jar);
-                }
+            final Provisioning pm = galleonEnv.getProvisioning();
+            final Set<String> pluginGavs = pm.getOrderedFeaturePackPluginLocations(provisioningConfig);
+            for (String pluginGav : pluginGavs) {
+                final String[] pluginLoc = pluginGav.split(":");
+                final MavenArtifact jar = galleonEnv.getChannelSession().resolveMavenArtifact(pluginLoc[0], pluginLoc[1], "jar", null, null);
+                artifactCache.cache(jar);
             }
 
             for (String fp : getFeaturePacks(installedDir, provisioningConfig)) {
