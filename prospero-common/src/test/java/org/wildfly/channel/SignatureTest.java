@@ -18,6 +18,7 @@
 package org.wildfly.channel;
 
 import org.apache.commons.io.FileUtils;
+import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.openpgp.PGPSecretKeyRing;
 import org.eclipse.aether.DefaultRepositorySystemSession;
 import org.eclipse.aether.RepositorySystem;
@@ -39,10 +40,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.wildfly.channel.MavenSignatureValidator.describeImportedKeys;
 
 public class SignatureTest {
 
@@ -75,13 +78,15 @@ public class SignatureTest {
 
         final Path artifactPath = MavenUtils.pathOf(testRepo, "com.test.sign", "test-app", "1.0.0");
         SignatureUtils.signFile(pgpSecretKey, artifactPath, "TestPassword");
+        final Path publicKeyFolder = temp.newFolder("public-keys").toPath();
 
         List<Channel> channels = List.of(new Channel.Builder()
                 .setManifestUrl(new URL(manifestFile.toURI().toURL().toExternalForm()))
                 .addRepository("test-repo", testRepo.toUri().toURL().toExternalForm())
+                .setGpgCheck(true)
+                .setGpgUrl(publicKeyFolder.resolve("test-key.gpg").toUri().toString())
                 .build());
 
-        final Path publicKeyFolder = temp.newFolder("public-keys").toPath();
         SignatureUtils.exportPublicKeys(pgpSecretKey, publicKeyFolder.resolve("test-key.gpg").toFile());
 
         final MavenSignatureValidator signatureValidator = new MavenSignatureValidator((s)->true, new Keyring(publicKeyFolder.resolve("keyring.gpg")));
@@ -112,6 +117,7 @@ public class SignatureTest {
         List<Channel> channels = List.of(new Channel.Builder()
                 .setManifestUrl(new URL(manifestFile.toURI().toURL().toExternalForm()))
                 .addRepository("test-repo", testRepo.toUri().toURL().toExternalForm())
+                .setGpgCheck(true)
                 .build());
 
         final Path publicKeyFolder = temp.newFolder("public-keys").toPath();
@@ -119,7 +125,7 @@ public class SignatureTest {
 
         final MavenSignatureValidator signatureValidator = new MavenSignatureValidator((s)->true, new Keyring(publicKeyFolder.resolve("keyring.gpg")));
         final ChannelSession session = new ChannelSession(channels, new VersionResolverFactory(repositorySystem, repositorySession,
-                VersionResolverFactory.DEFAULT_REPOSITORY_MAPPER));
+                VersionResolverFactory.DEFAULT_REPOSITORY_MAPPER), signatureValidator);
 
         // corrupt the artifact
         final File corruptedJarFile = temp.newFile("corrupted-test.jar");
@@ -146,15 +152,18 @@ public class SignatureTest {
         final PGPSecretKeyRing pgpSecretKey = SignatureUtils.generateSecretKey("test@test.org", "TestPassword");
 
         final Path artifactPath = MavenUtils.pathOf(testRepo, "com.test.sign", "test-app", "1.0.0");
-        String keyId = SignatureUtils.signFile(pgpSecretKey, artifactPath, "TestPassword");
-
-        List<Channel> channels = List.of(new Channel.Builder()
-                .setManifestUrl(new URL(manifestFile.toURI().toURL().toExternalForm()))
-                .addRepository("test-repo", testRepo.toUri().toURL().toExternalForm())
-                .build());
+        SignatureUtils.signFile(pgpSecretKey, artifactPath, "TestPassword");
 
         final Path publicKeyFolder = temp.newFolder("public-keys").toPath();
         SignatureUtils.exportPublicKeys(pgpSecretKey, publicKeyFolder.resolve("test-key.gpg").toFile());
+
+        List<Channel> channels = List.of(new Channel.Builder()
+                .setManifestUrl(manifestFile.toURI().toURL())
+                .addRepository("test-repo", testRepo.toUri().toURL().toExternalForm())
+                .setGpgCheck(true)
+                .setGpgUrl(publicKeyFolder.resolve("test-key.gpg").toUri().toString())
+                .build());
+
 
         final ArrayList<String> signatures = new ArrayList<>();
         final MavenSignatureValidator signatureValidator = new MavenSignatureValidator((s)->{
@@ -162,12 +171,12 @@ public class SignatureTest {
             return true;
         }, new Keyring(publicKeyFolder.resolve("keyring.gpg")));
         final ChannelSession session = new ChannelSession(channels, new VersionResolverFactory(repositorySystem, repositorySession,
-                VersionResolverFactory.DEFAULT_REPOSITORY_MAPPER));
+                VersionResolverFactory.DEFAULT_REPOSITORY_MAPPER), signatureValidator);
 
         session.resolveMavenArtifact("com.test.sign", "test-app", "jar", null, "");
 
         assertThat(signatures)
-                .containsExactly(keyId);
+                .containsExactly(describeImportedKeys(toList(pgpSecretKey.getPublicKeys())));
     }
 
     @Test
@@ -185,27 +194,39 @@ public class SignatureTest {
         final PGPSecretKeyRing pgpSecretKey = SignatureUtils.generateSecretKey("test@test.org", "TestPassword");
 
         final Path artifactPath = MavenUtils.pathOf(testRepo, "com.test.sign", "test-app", "1.0.0");
-        String keyId = SignatureUtils.signFile(pgpSecretKey, artifactPath, "TestPassword");
+        SignatureUtils.signFile(pgpSecretKey, artifactPath, "TestPassword");
 
         List<Channel> channels = List.of(new Channel.Builder()
                 .setManifestUrl(new URL(manifestFile.toURI().toURL().toExternalForm()))
                 .addRepository("test-repo", testRepo.toUri().toURL().toExternalForm())
+                .setGpgCheck(true)
                 .build());
 
         final Path publicKeyFolder = temp.newFolder("public-keys").toPath();
         SignatureUtils.exportPublicKeys(pgpSecretKey, publicKeyFolder.resolve("test-key.gpg").toFile());
 
-        final ArrayList<String> signatures = new ArrayList<>();
+        final ArrayList<String> addedSignatures = new ArrayList<>();
+        final Keyring keyring = new Keyring(publicKeyFolder.resolve("keyring.gpg"));
+        keyring.importArmoredKey(toList(pgpSecretKey.getPublicKeys()));
+
         final MavenSignatureValidator signatureValidator = new MavenSignatureValidator((s)->{
-            signatures.add(s);
+            addedSignatures.add(s);
             return true;
-        }, new Keyring(publicKeyFolder.resolve("keyring.gpg")));
+        }, keyring);
         final ChannelSession session = new ChannelSession(channels, new VersionResolverFactory(repositorySystem, repositorySession,
                 VersionResolverFactory.DEFAULT_REPOSITORY_MAPPER), signatureValidator);
 
         session.resolveMavenArtifact("com.test.sign", "test-app", "jar", null, "");
 
-        assertThat(signatures)
-                .containsExactly(keyId);
+        assertThat(addedSignatures)
+                .isEmpty();
+    }
+
+    private List<PGPPublicKey> toList(Iterator<PGPPublicKey> publicKeys) {
+        final ArrayList<PGPPublicKey> res = new ArrayList<>();
+        while (publicKeys.hasNext()) {
+            res.add(publicKeys.next());
+        }
+        return res;
     }
 }

@@ -24,6 +24,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -51,7 +52,7 @@ public class SignatureUtils {
      * @return
      * @throws Exception
      */
-    public static String signFile(PGPSecretKeyRing keyRing, Path originalFile, String pass) throws Exception {
+    public static Long signFile(PGPSecretKeyRing keyRing, Path originalFile, String pass) throws Exception {
         EncryptionStream encryptionStream = null;
         try {
             encryptionStream = getEncryptionStreamWithSigning(keyRing, pass);
@@ -73,7 +74,7 @@ public class SignatureUtils {
                 final Set<PGPSignature> pgpSignatures = encryptionStream.getResult().getDetachedSignatures().get(subkeyIdentifier);
                 for (PGPSignature pgpSignature : pgpSignatures) {
                     pgpSignature.encode(aos);
-                    return String.format("%X", pgpSignature.getKeyID());
+                    return pgpSignature.getKeyID();
                 }
             }
         }
@@ -91,8 +92,9 @@ public class SignatureUtils {
 
     public static void exportPublicKeys(PGPSecretKeyRing pgpSecretKey, File targetFile) throws IOException {
         final List<PGPPublicKey> pubKeyList = new ArrayList<>();
-        pgpSecretKey.getPublicKeys().forEachRemaining(pubKeyList::add);
-        PGPPublicKeyRing pubKeyRing = new PGPPublicKeyRing(pubKeyList);
+        final Iterator<PGPPublicKey> publicKeys = pgpSecretKey.getPublicKeys();
+        publicKeys.forEachRemaining(pubKeyList::add);
+        final PGPPublicKeyRing pubKeyRing = new PGPPublicKeyRing(pubKeyList);
         try (OutputStream outStream = new ArmoredOutputStream(new FileOutputStream(targetFile))) {
             pubKeyRing.encode(outStream, true);
         }

@@ -24,33 +24,35 @@ public class Keyring {
     private final Logger log = Logger.getLogger(Keyring.class.getName());
 
     private final Path keyStoreFile;
+
+    private synchronized PGPPublicKeyRingCollection getPublicKeyRingCollection() {
+        if (publicKeyRingCollection == null) {
+            publicKeyRingCollection = new PGPPublicKeyRingCollection(Collections.emptyList());
+        }
+        return publicKeyRingCollection;
+    }
+
     private PGPPublicKeyRingCollection publicKeyRingCollection;
 
     public Keyring(Path keyStoreFile) throws IOException, PGPException {
         this.keyStoreFile = keyStoreFile;
 
-        if (!Files.exists(keyStoreFile)) {
-            publicKeyRingCollection = new PGPPublicKeyRingCollection(Collections.emptyList());
-            try(FileOutputStream outStream = new FileOutputStream(keyStoreFile.toFile())) {
-                publicKeyRingCollection.encode(outStream);
-            }
-        } else {
+        if (Files.exists(keyStoreFile)) {
             publicKeyRingCollection = new PGPPublicKeyRingCollection(new FileInputStream(keyStoreFile.toFile()), new JcaKeyFingerprintCalculator());
         }
     }
 
     public void importArmoredKey(File keyFile) throws IOException {
-
         final PGPPublicKeyRing pgpPublicKeys = new PGPPublicKeyRing(new ArmoredInputStream(new FileInputStream(keyFile)), new JcaKeyFingerprintCalculator());
-        publicKeyRingCollection = PGPPublicKeyRingCollection.addPublicKeyRing(publicKeyRingCollection, pgpPublicKeys);
+        publicKeyRingCollection = PGPPublicKeyRingCollection.addPublicKeyRing(getPublicKeyRingCollection(), pgpPublicKeys);
         try(FileOutputStream outStream = new FileOutputStream(keyStoreFile.toFile())) {
-            publicKeyRingCollection.encode(outStream);
+            getPublicKeyRingCollection().encode(outStream);
         }
     }
 
     public PGPPublicKey getKey(PGPSignature pgpSignature) {
         // TODO: handle multiple keyrings;
-        final Iterator<PGPPublicKeyRing> keyRings = publicKeyRingCollection.getKeyRings();
+        final Iterator<PGPPublicKeyRing> keyRings = getPublicKeyRingCollection().getKeyRings();
         while (keyRings.hasNext()) {
             PGPPublicKey publicKey = getPublicKey(pgpSignature, keyRings.next());
             if (publicKey != null) {
@@ -81,11 +83,11 @@ public class Keyring {
         return pgpPublicKeyRing.getPublicKey(pgpSignature.getKeyID());
     }
 
-    public void importArmoredKey(PGPPublicKey pgpPublicKey) throws IOException {
-        final PGPPublicKeyRing pgpPublicKeys = new PGPPublicKeyRing(List.of(pgpPublicKey));
-        publicKeyRingCollection = PGPPublicKeyRingCollection.addPublicKeyRing(publicKeyRingCollection, pgpPublicKeys);
+    public void importArmoredKey(List<PGPPublicKey> pgpPublicKeys) throws IOException {
+        final PGPPublicKeyRing pgpPublicKeyRing = new PGPPublicKeyRing(pgpPublicKeys);
+        publicKeyRingCollection = PGPPublicKeyRingCollection.addPublicKeyRing(getPublicKeyRingCollection(), pgpPublicKeyRing);
         try(FileOutputStream outStream = new FileOutputStream(keyStoreFile.toFile())) {
-            publicKeyRingCollection.encode(outStream);
+            getPublicKeyRingCollection().encode(outStream);
         }
     }
 }

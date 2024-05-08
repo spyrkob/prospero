@@ -14,7 +14,7 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.bouncycastle.</groupId>
+            <groupId>org.bouncycastle</groupId>
             <artifactId>bcpg-jdk18on</artifactId>
         </dependency>
         <dependency>

@@ -1,6 +1,7 @@
 package org.wildfly.channel;
 
 import org.bouncycastle.openpgp.PGPPublicKey;
+import org.bouncycastle.openpgp.PGPPublicKeyRingCollection;
 import org.bouncycastle.openpgp.PGPSecretKeyRing;
 import org.bouncycastle.util.encoders.Hex;
 import org.junit.Ignore;
@@ -13,11 +14,11 @@ import org.wildfly.prospero.utils.SignatureUtils;
 import java.io.File;
 import java.io.FileInputStream;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Iterator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class KeyringTest {
@@ -26,15 +27,13 @@ public class KeyringTest {
     public TemporaryFolder temp = new TemporaryFolder();
 
     @Test
-    public void createEmptyKeyring() throws Exception {
+    public void creatingKeyringWithoutKeyDoesntCreateFile() throws Exception {
         final Path file = temp.newFolder("keyring-test-folder").toPath();
 
         new Keyring(file.resolve("store.gpg"));
 
         assertThat(file.resolve("store.gpg"))
-                .exists();
-        assertNull("New store should be empty",
-                PGPainless.readKeyRing().keyRing(new FileInputStream(file.resolve("store.gpg").toFile())));
+                .doesNotExist();
     }
 
     @Test
@@ -54,6 +53,41 @@ public class KeyringTest {
         assertTrue("New store should contain a key",
                 publicKeys.hasNext());
         assertEquals(Hex.toHexString(generatedKey.getPublicKey().getFingerprint()), Hex.toHexString(publicKeys.next().getFingerprint()));
+    }
+
+    @Test
+    public void addKeyToExistingKeyring() throws Exception {
+        final Path file = temp.newFolder("keyring-test-folder").toPath();
+
+        final Keyring keyring = new Keyring(file.resolve("store.gpg"));
+        // add initial key
+        final File keyFile = temp.newFile("key.gpg");
+        final PGPSecretKeyRing generatedKey = SignatureUtils.generateSecretKey("Test", "test");
+        SignatureUtils.exportPublicKeys(generatedKey, keyFile);
+        keyring.importArmoredKey(keyFile);
+
+        // add new key
+        final Keyring keyringTwo = new Keyring(file.resolve("store.gpg"));
+        final File keyFileTwo = temp.newFile("key-two.gpg");
+        final PGPSecretKeyRing generatedKeyTwo = SignatureUtils.generateSecretKey("Test 2", "test");
+        SignatureUtils.exportPublicKeys(generatedKeyTwo, keyFileTwo);
+        keyringTwo.importArmoredKey(keyFileTwo);
+
+
+        final PGPPublicKeyRingCollection pgpPublicKeyRings = PGPainless.readKeyRing().publicKeyRingCollection(new FileInputStream(file.resolve("store.gpg").toFile()));
+        assertTrue("New store should contain a key",
+                pgpPublicKeyRings.getKeyRings().hasNext());
+
+        final ArrayList<PGPPublicKey> pgpPublicKeys = new ArrayList<>();
+        pgpPublicKeyRings.getKeyRings().forEachRemaining(kr->kr.getPublicKeys().forEachRemaining(pgpPublicKeys::add));
+//        final Iterator<PGPPublicKey> publicKeys = (Iterator<PGPPublicKey>) pgpPublicKeyRings;();
+//        publicKeys.forEachRemaining(pgpPublicKeys::add);
+        assertThat(pgpPublicKeys)
+                .map(PGPPublicKey::getFingerprint)
+                .map(Hex::toHexString)
+                .contains(
+                        Hex.toHexString(generatedKey.getPublicKey().getFingerprint()),
+                        Hex.toHexString(generatedKeyTwo.getPublicKey().getFingerprint()));
     }
 
     @Test

@@ -39,7 +39,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URLConnection;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.function.Function;
 
 public class MavenSignatureValidator implements SignatureValidator {
@@ -66,25 +68,21 @@ public class MavenSignatureValidator implements SignatureValidator {
 
         PGPPublicKey publicKey = keyring.getKey(pgpSignature);
 
-        if (publicKey == null) {
-            final PGPPublicKey pgpPublicKey = downloadPublicKey(gpgUrl);
-            final Iterator<String> userIDs = pgpPublicKey.getUserIDs();
-            final StringBuilder sb = new StringBuilder();
-            while (userIDs.hasNext()) {
-                sb.append(userIDs.next());
-            }
+        if (publicKey == null && gpgUrl != null) {
+            final List<PGPPublicKey> pgpPublicKeys = downloadPublicKey(gpgUrl);
+            final String description = describeImportedKeys(pgpPublicKeys);
             // TODO: verify that the key matches required signature
-            if (acceptor.apply(sb + ": " +  Hex.toHexString(pgpPublicKey.getFingerprint()))) {
+            if (acceptor.apply(description)) {
                 try {
-                    keyring.importArmoredKey(pgpPublicKey);
+                    keyring.importArmoredKey(pgpPublicKeys);
                     publicKey = keyring.getKey(pgpSignature);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
             }
-            if (publicKey == null) {
-                throw new SignatureValidator.SignatureException("No matching public key found");
-            }
+        }
+        if (publicKey == null) {
+            throw new SignatureValidator.SignatureException("No matching public key found");
         }
 
         if (log.isDebugEnabled()) {
@@ -97,6 +95,18 @@ public class MavenSignatureValidator implements SignatureValidator {
         }
 
         verifyFile(artifact, pgpSignature);
+    }
+
+    static String describeImportedKeys(List<PGPPublicKey> pgpPublicKeys) {
+        final StringBuilder sb = new StringBuilder();
+        for (PGPPublicKey pgpPublicKey : pgpPublicKeys) {
+            final Iterator<String> userIDs = pgpPublicKey.getUserIDs();
+            while (userIDs.hasNext()) {
+                sb.append(userIDs.next());
+            }
+            sb.append(": ").append(Hex.toHexString(pgpPublicKey.getFingerprint()));
+        }
+        return sb.toString();
     }
 
     private static void verifyFile(File mavenArtifact, PGPSignature pgpSignature) {
@@ -161,7 +171,7 @@ public class MavenSignatureValidator implements SignatureValidator {
         return pgpSignature;
     }
 
-    private static PGPPublicKey downloadPublicKey(String signatureUrl) {
+    private static List<PGPPublicKey> downloadPublicKey(String signatureUrl) {
         try {
             final URI uri = URI.create(signatureUrl);
             final InputStream inputStream;
@@ -175,7 +185,12 @@ public class MavenSignatureValidator implements SignatureValidator {
             }
             try (InputStream decoderStream = new ArmoredInputStream(inputStream)) {
                 final PGPPublicKeyRing pgpPublicKeys = new PGPPublicKeyRing(decoderStream, new JcaKeyFingerprintCalculator());
-                return pgpPublicKeys.getPublicKey();
+                final ArrayList<PGPPublicKey> res = new ArrayList<>();
+                final Iterator<PGPPublicKey> publicKeys = pgpPublicKeys.getPublicKeys();
+                while (publicKeys.hasNext()) {
+                    res.add(publicKeys.next());
+                }
+                return res;
             }
 
         } catch (IOException e) {
