@@ -54,10 +54,14 @@ public class Keyring {
         // TODO: handle multiple keyrings;
         final Iterator<PGPPublicKeyRing> keyRings = getPublicKeyRingCollection().getKeyRings();
         while (keyRings.hasNext()) {
-            PGPPublicKey publicKey = getPublicKey(pgpSignature, keyRings.next());
-            if (publicKey != null) {
-                return publicKey;
+            final PGPPublicKey publicKey = getPublicKey(pgpSignature, keyRings.next());
+            if (publicKey == null) {
+                return null;
             }
+            if (publicKey.hasRevocation()) {
+                throw new RuntimeException("The key has been revoked");
+            }
+            return publicKey;
         }
 
         return null;
