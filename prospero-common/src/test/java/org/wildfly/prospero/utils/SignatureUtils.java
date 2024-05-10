@@ -13,7 +13,9 @@ import org.pgpainless.encryption_signing.ProducerOptions;
 import org.pgpainless.encryption_signing.SigningOptions;
 import org.pgpainless.key.SubkeyIdentifier;
 import org.pgpainless.key.protection.SecretKeyRingProtector;
+import org.pgpainless.sop.SOPImpl;
 import org.pgpainless.util.Passphrase;
+import sop.SOP;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -98,5 +100,22 @@ public class SignatureUtils {
         try (OutputStream outStream = new ArmoredOutputStream(new FileOutputStream(targetFile))) {
             pubKeyRing.encode(outStream, true);
         }
+    }
+
+    public static Long exportRevocationKeys(PGPSecretKeyRing pgpSecretKey, File targetFile, String password) throws IOException {
+        final SOP sop = new SOPImpl();
+        final PGPPublicKeyRing pgpPublicKeys = PGPainless.readKeyRing().publicKeyRing(sop.revokeKey()
+                .withKeyPassword(password)
+                .keys(pgpSecretKey.getEncoded()).getInputStream());
+
+        final Iterator<PGPSignature> signatures = pgpPublicKeys.getPublicKey().getSignaturesOfType(PGPSignature.KEY_REVOCATION);
+        while(signatures.hasNext()) {
+            final PGPSignature signature = signatures.next();
+            try (ArmoredOutputStream outStream = new ArmoredOutputStream(new FileOutputStream(targetFile))) {
+                signature.encode(outStream, true);
+                return signature.getKeyID();
+            }
+        }
+        return null;
     }
 }

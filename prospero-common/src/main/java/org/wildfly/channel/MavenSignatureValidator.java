@@ -24,6 +24,7 @@ import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.openpgp.PGPPublicKeyRing;
 import org.bouncycastle.openpgp.PGPSignature;
 import org.bouncycastle.openpgp.PGPSignatureList;
+import org.bouncycastle.openpgp.PGPSignatureSubpacketVector;
 import org.bouncycastle.openpgp.PGPUtil;
 import org.bouncycastle.openpgp.operator.bc.BcPGPContentVerifierBuilderProvider;
 import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
@@ -85,6 +86,21 @@ public class MavenSignatureValidator implements SignatureValidator {
             throw new SignatureValidator.SignatureException("No matching public key found");
         }
 
+        final Iterator<PGPSignature> subKeys = publicKey.getSignaturesOfType(PGPSignature.SUBKEY_BINDING);
+        while (subKeys.hasNext()) {
+            final PGPSignature subKey = subKeys.next();
+            final PGPPublicKey masterKey = keyring.getKey(subKey.getKeyID());
+            if (masterKey.hasRevocation()) {
+                throw new SignatureValidator.SignatureException(String.format("Key %Xd has been revoked: %s.",
+                        publicKey.getKeyID(), getRevocationReason(masterKey)));
+            }
+        }
+
+        if (publicKey.hasRevocation()) {
+            throw new SignatureValidator.SignatureException(String.format("Key %Xd has been revoked: %s.",
+                    publicKey.getKeyID(), getRevocationReason(publicKey)));
+        }
+
         if (log.isDebugEnabled()) {
             log.debugf("The ID of the selected key is %X\n", publicKey.getKeyID());
         }
@@ -95,6 +111,19 @@ public class MavenSignatureValidator implements SignatureValidator {
         }
 
         verifyFile(artifact, pgpSignature);
+    }
+
+    private static String getRevocationReason(PGPPublicKey publicKey) {
+        Iterator<PGPSignature> keySignatures = publicKey.getSignaturesOfType(PGPSignature.KEY_REVOCATION);
+        String revocationDescription = null;
+        while (keySignatures.hasNext()) {
+            final PGPSignature sign = keySignatures.next();
+            if (sign.getSignatureType() == PGPSignature.KEY_REVOCATION) {
+                final PGPSignatureSubpacketVector hashedSubPackets = sign.getHashedSubPackets();
+                revocationDescription = hashedSubPackets.getRevocationReason().getRevocationDescription();
+            }
+        }
+        return revocationDescription;
     }
 
     static String describeImportedKeys(List<PGPPublicKey> pgpPublicKeys) {

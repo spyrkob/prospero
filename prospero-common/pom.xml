@@ -137,6 +137,12 @@
             <version>1.6.1</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.pgpainless</groupId>
+            <artifactId>pgpainless-sop</artifactId>
+            <version>1.6.1</version>
+            <scope>test</scope>
+        </dependency>
 
     </dependencies>
 

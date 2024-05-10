@@ -222,6 +222,52 @@ public class SignatureTest {
                 .isEmpty();
     }
 
+    @Test
+    public void failOnRevokedCert() throws Exception {
+        final ChannelManifest manifest = MetadataTestUtils.createManifest(List.of(new Stream("com.test.sign", "test-app", "1.0.0")));
+        final File manifestFile = temp.newFile("test-manifest.yaml");
+        FileUtils.write(manifestFile, ChannelManifestMapper.toYaml(manifest), StandardCharsets.UTF_8);
+
+        final File jarFile = temp.newFile("test.jar");
+
+        final Path testRepo = temp.newFolder("test-repo").toPath();
+        new MavenUtils(MavenOptions.OFFLINE_NO_CACHE).deployFile("com.test.sign", "test-app", "1.0.0", null, "jar",
+                jarFile, testRepo.toUri().toURL());
+
+        final PGPSecretKeyRing pgpSecretKey = SignatureUtils.generateSecretKey("test@test.org", "TestPassword");
+
+        final Path artifactPath = MavenUtils.pathOf(testRepo, "com.test.sign", "test-app", "1.0.0");
+        SignatureUtils.signFile(pgpSecretKey, artifactPath, "TestPassword");
+
+        List<Channel> channels = List.of(new Channel.Builder()
+                .setManifestUrl(new URL(manifestFile.toURI().toURL().toExternalForm()))
+                .addRepository("test-repo", testRepo.toUri().toURL().toExternalForm())
+                .setGpgCheck(true)
+                .build());
+
+        final Path publicKeyFolder = temp.newFolder("public-keys").toPath();
+        SignatureUtils.exportPublicKeys(pgpSecretKey, publicKeyFolder.resolve("test-key.gpg").toFile());
+        SignatureUtils.exportRevocationKeys(pgpSecretKey, publicKeyFolder.resolve("revoke.gpg").toFile(), "TestPassword");
+
+        final ArrayList<String> addedSignatures = new ArrayList<>();
+        final Keyring keyring = new Keyring(publicKeyFolder.resolve("keyring.gpg"));
+        keyring.importArmoredKey(toList(pgpSecretKey.getPublicKeys()));
+        keyring.importCertificate(publicKeyFolder.resolve("revoke.gpg").toFile());
+
+        final MavenSignatureValidator signatureValidator = new MavenSignatureValidator((s)->{
+            addedSignatures.add(s);
+            return true;
+        }, keyring);
+        final ChannelSession session = new ChannelSession(channels, new VersionResolverFactory(repositorySystem, repositorySession,
+                VersionResolverFactory.DEFAULT_REPOSITORY_MAPPER), signatureValidator);
+
+        assertThatThrownBy(()->session.resolveMavenArtifact("com.test.sign", "test-app", "jar", null, ""))
+                .hasMessageContaining("has been revoked");
+
+        assertThat(addedSignatures)
+                .isEmpty();
+    }
+
     private List<PGPPublicKey> toList(Iterator<PGPPublicKey> publicKeys) {
         final ArrayList<PGPPublicKey> res = new ArrayList<>();
         while (publicKeys.hasNext()) {

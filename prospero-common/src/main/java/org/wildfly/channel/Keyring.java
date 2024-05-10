@@ -1,6 +1,7 @@
 package org.wildfly.channel;
 
 import org.bouncycastle.bcpg.ArmoredInputStream;
+import org.bouncycastle.bcpg.BCPGInputStream;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.openpgp.PGPPublicKeyRing;
@@ -51,23 +52,15 @@ public class Keyring {
     }
 
     public PGPPublicKey getKey(PGPSignature pgpSignature) {
-        // TODO: handle multiple keyrings;
         final Iterator<PGPPublicKeyRing> keyRings = getPublicKeyRingCollection().getKeyRings();
         while (keyRings.hasNext()) {
-            final PGPPublicKey publicKey = getPublicKey(pgpSignature, keyRings.next());
-            if (publicKey == null) {
-                return null;
-            }
-            if (publicKey.hasRevocation()) {
-                throw new RuntimeException("The key has been revoked");
-            }
-            return publicKey;
+            return getPublicKey(pgpSignature, keyRings.next());
         }
 
         return null;
     }
 
-    public PGPPublicKey getPublicKey(PGPSignature pgpSignature, PGPPublicKeyRing pgpPublicKeyRing) {
+    private PGPPublicKey getPublicKey(PGPSignature pgpSignature, PGPPublicKeyRing pgpPublicKeyRing) {
 
         final Iterator<PGPPublicKey> publicKeys = pgpPublicKeyRing.getPublicKeys();
 
@@ -93,5 +86,49 @@ public class Keyring {
         try(FileOutputStream outStream = new FileOutputStream(keyStoreFile.toFile())) {
             getPublicKeyRingCollection().encode(outStream);
         }
+    }
+
+    public void importCertificate(File certificateFile) throws IOException, PGPException {
+        final PGPSignature pgpSignature = new PGPSignature(new BCPGInputStream(new ArmoredInputStream(new FileInputStream(certificateFile))));
+        final long keyId = pgpSignature.getKeyID();
+
+        final PGPPublicKeyRingCollection publicKeyRingCollection = getPublicKeyRingCollection();
+        final Iterator<PGPPublicKeyRing> keyRings = publicKeyRingCollection.getKeyRings();
+        PGPPublicKeyRing keyRing = null;
+        PGPPublicKey publicKey = null;
+        while (keyRings.hasNext()) {
+            keyRing = keyRings.next();
+            publicKey = keyRing.getPublicKey(keyId);
+            if (publicKey != null) {
+                break;
+            }
+        }
+
+
+
+        final PGPPublicKey pgpPublicKey = PGPPublicKey.addCertification(publicKey, pgpSignature);
+        // TODO: see if possible to use just a keyRing instead of collection for storage
+        PGPPublicKeyRing newKeyRing = PGPPublicKeyRing.insertPublicKey(keyRing, pgpPublicKey);
+
+        PGPPublicKeyRingCollection collection = PGPPublicKeyRingCollection.removePublicKeyRing(publicKeyRingCollection, keyRing);
+        collection = PGPPublicKeyRingCollection.addPublicKeyRing(collection, newKeyRing);
+
+        this.publicKeyRingCollection = collection;
+        try(FileOutputStream outStream = new FileOutputStream(keyStoreFile.toFile())) {
+            getPublicKeyRingCollection().encode(outStream);
+        }
+
+    }
+
+    public PGPPublicKey getKey(long keyID) {
+        final Iterator<PGPPublicKeyRing> keyRings = getPublicKeyRingCollection().getKeyRings();
+        while (keyRings.hasNext()) {
+            final PGPPublicKeyRing keyRing = keyRings.next();
+            final PGPPublicKey publicKey = keyRing.getPublicKey(keyID);
+            if (publicKey != null) {
+                return publicKey;
+            }
+        }
+        return null;
     }
 }
