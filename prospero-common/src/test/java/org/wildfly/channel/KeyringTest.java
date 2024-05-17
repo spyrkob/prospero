@@ -12,6 +12,7 @@ import org.wildfly.prospero.utils.SignatureUtils;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -115,5 +116,18 @@ public class KeyringTest {
                         Hex.toHexString(generatedKey.getPublicKey().getFingerprint()));
 
         assertThat(pgpPublicKeys).allMatch(PGPPublicKey::hasRevocation);
+    }
+
+    @Test
+    public void testMe() throws Exception {
+        final Path file = temp.newFolder("keyring-test-folder").toPath();
+
+        final Keyring keyring = new Keyring(file.resolve("store.gpg"));
+        final File cert = new File("/Users/spyrkob/workspaces/set/prospero/tmp/sig_validate/verifier/RH.gpg");
+        try {
+            keyring.importCertificate(cert);
+        } catch (IOException e) {
+            keyring.importArmoredKey(cert);
+        }
     }
 }
