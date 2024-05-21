@@ -164,35 +164,21 @@ public class Keyring {
     }
 
     public KeyInfo readKey(File file) throws IOException, PGPException {
-        try {
-            final PGPPublicKeyRing pgpPublicKeys = new PGPPublicKeyRing(new ArmoredInputStream(new FileInputStream(file)), new JcaKeyFingerprintCalculator());
-            final PGPPublicKey key = pgpPublicKeys.getPublicKey();
-            final String keyID = String.format("%Xd", key.getKeyID());
-            final String fingerprint = Hex.toHexString(key.getFingerprint());
-            final Iterator<String> userIDs = key.getUserIDs();
-            final ArrayList<String> tmpUserIds = new ArrayList<>();
-            while (userIDs.hasNext()) {
-                tmpUserIds.add(userIDs.next());
-            }
-            final List<String> identities = Collections.unmodifiableList(tmpUserIds);
-            final KeyInfo.Status status = key.hasRevocation() ? KeyInfo.Status.REVOKED : KeyInfo.Status.TRUSTED;
-            final LocalDateTime creationDate = key.getCreationTime().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
-            final LocalDateTime expiryDate = key.getValidSeconds() == 0?null:creationDate.plusSeconds(key.getValidSeconds());
-        } catch (IOException e) {
-            final PGPSignature signature = new PGPSignature(new BCPGInputStream(new ArmoredInputStream(new FileInputStream(file))));
-            final String keyID = String.format("%Xd", signature.getKeyID());
-//            final String fingerprint = Hex.toHexString(signature.getgetFingerprint());
-//            final Iterator<String> userIDs = signature.UserIDs();
-//            final ArrayList<String> tmpUserIds = new ArrayList<>();
-//            while (userIDs.hasNext()) {
-//                tmpUserIds.add(userIDs.next());
-//            }
-//            final List<String> identities = Collections.unmodifiableList(tmpUserIds);
-            final KeyInfo.Status status = signature.getSignatureType() == PGPSignature.KEY_REVOCATION ? KeyInfo.Status.REVOKED : KeyInfo.Status.TRUSTED;
-            final LocalDateTime creationDate = signature.getCreationTime().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
-//            final LocalDateTime expiryDate = signature.getValidSeconds() == 0?null:creationDate.plusSeconds(key.getValidSeconds());
+        final PGPPublicKeyRing pgpPublicKeys = new PGPPublicKeyRing(new ArmoredInputStream(new FileInputStream(file)), new JcaKeyFingerprintCalculator());
+        final PGPPublicKey key = pgpPublicKeys.getPublicKey();
+        final String keyID = String.format("%Xd", key.getKeyID());
+        final String fingerprint = Hex.toHexString(key.getFingerprint());
+        final Iterator<String> userIDs = key.getUserIDs();
+        final ArrayList<String> tmpUserIds = new ArrayList<>();
+        while (userIDs.hasNext()) {
+            tmpUserIds.add(userIDs.next());
         }
-        return null;
+        final List<String> identities = Collections.unmodifiableList(tmpUserIds);
+        final KeyInfo.Status status = key.hasRevocation() ? KeyInfo.Status.REVOKED : KeyInfo.Status.TRUSTED;
+        final LocalDateTime creationDate = key.getCreationTime().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+        final LocalDateTime expiryDate = key.getValidSeconds() == 0?null:creationDate.plusSeconds(key.getValidSeconds());
+
+        return new KeyInfo(keyID, status, fingerprint, identities, creationDate, expiryDate);
     }
 
     public static class KeyInfo {
