@@ -12,6 +12,7 @@ public class CertificatesCommand extends AbstractParentCommand {
     public CertificatesCommand(CliConsole console, ActionFactory actionFactory) {
         super(console, actionFactory, "certificate", List.of(
                 new CertificateAddCommand(console, actionFactory),
+                new CertificateRemoveCommand(console, actionFactory),
                 new CertificateListCommand(console, actionFactory))
         );
     }

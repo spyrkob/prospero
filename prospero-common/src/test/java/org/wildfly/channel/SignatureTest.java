@@ -207,7 +207,7 @@ public class SignatureTest {
 
         final ArrayList<String> addedSignatures = new ArrayList<>();
         final Keyring keyring = new Keyring(publicKeyFolder.resolve("keyring.gpg"));
-        keyring.importArmoredKey(toList(pgpSecretKey.getPublicKeys()));
+        keyring.importCertificate(toList(pgpSecretKey.getPublicKeys()));
 
         final MavenSignatureValidator signatureValidator = new MavenSignatureValidator((s)->{
             addedSignatures.add(s);
@@ -251,8 +251,8 @@ public class SignatureTest {
 
         final ArrayList<String> addedSignatures = new ArrayList<>();
         final Keyring keyring = new Keyring(publicKeyFolder.resolve("keyring.gpg"));
-        keyring.importArmoredKey(toList(pgpSecretKey.getPublicKeys()));
-        keyring.importCertificate(publicKeyFolder.resolve("revoke.gpg").toFile());
+        keyring.importCertificate(toList(pgpSecretKey.getPublicKeys()));
+        keyring.revokeCertificate(publicKeyFolder.resolve("revoke.gpg").toFile());
 
         final MavenSignatureValidator signatureValidator = new MavenSignatureValidator((s)->{
             addedSignatures.add(s);

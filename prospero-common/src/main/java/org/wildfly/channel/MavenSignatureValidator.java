@@ -75,7 +75,7 @@ public class MavenSignatureValidator implements SignatureValidator {
             // TODO: verify that the key matches required signature
             if (acceptor.apply(description)) {
                 try {
-                    keyring.importArmoredKey(pgpPublicKeys);
+                    keyring.importCertificate(pgpPublicKeys);
                     publicKey = keyring.getKey(pgpSignature);
                 } catch (IOException e) {
                     throw new RuntimeException(e);

@@ -15,6 +15,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -48,14 +49,6 @@ public class Keyring {
         }
     }
 
-    public void importArmoredKey(File keyFile) throws IOException {
-        final PGPPublicKeyRing pgpPublicKeys = new PGPPublicKeyRing(new ArmoredInputStream(new FileInputStream(keyFile)), new JcaKeyFingerprintCalculator());
-        publicKeyRingCollection = PGPPublicKeyRingCollection.addPublicKeyRing(getPublicKeyRingCollection(), pgpPublicKeys);
-        try(FileOutputStream outStream = new FileOutputStream(keyStoreFile.toFile())) {
-            getPublicKeyRingCollection().encode(outStream);
-        }
-    }
-
     public PGPPublicKey getKey(PGPSignature pgpSignature) {
         final Iterator<PGPPublicKeyRing> keyRings = getPublicKeyRingCollection().getKeyRings();
         while (keyRings.hasNext()) {
@@ -85,7 +78,19 @@ public class Keyring {
         return pgpPublicKeyRing.getPublicKey(pgpSignature.getKeyID());
     }
 
-    public void importArmoredKey(List<PGPPublicKey> pgpPublicKeys) throws IOException {
+    public void importCertificate(File keyFile) throws IOException {
+        importCertificate(new FileInputStream(keyFile));
+    }
+
+    public void importCertificate(InputStream certificateStream) throws IOException {
+        final PGPPublicKeyRing pgpPublicKeyRing = new PGPPublicKeyRing(new ArmoredInputStream(certificateStream), new JcaKeyFingerprintCalculator());
+        publicKeyRingCollection = PGPPublicKeyRingCollection.addPublicKeyRing(getPublicKeyRingCollection(), pgpPublicKeyRing);
+        try(FileOutputStream outStream = new FileOutputStream(keyStoreFile.toFile())) {
+            getPublicKeyRingCollection().encode(outStream);
+        }
+    }
+
+    public void importCertificate(List<PGPPublicKey> pgpPublicKeys) throws IOException {
         final PGPPublicKeyRing pgpPublicKeyRing = new PGPPublicKeyRing(pgpPublicKeys);
         publicKeyRingCollection = PGPPublicKeyRingCollection.addPublicKeyRing(getPublicKeyRingCollection(), pgpPublicKeyRing);
         try(FileOutputStream outStream = new FileOutputStream(keyStoreFile.toFile())) {
@@ -93,8 +98,12 @@ public class Keyring {
         }
     }
 
-    public void importCertificate(File certificateFile) throws IOException, PGPException {
-        final PGPSignature pgpSignature = new PGPSignature(new BCPGInputStream(new ArmoredInputStream(new FileInputStream(certificateFile))));
+    public void revokeCertificate(File certificateFile) throws IOException, PGPException {
+        revokeCertificate(new FileInputStream(certificateFile));
+    }
+
+    public void revokeCertificate(InputStream contentStream) throws IOException, PGPException {
+        final PGPSignature pgpSignature = new PGPSignature(new BCPGInputStream(new ArmoredInputStream(contentStream)));
         final long keyId = pgpSignature.getKeyID();
 
         final PGPPublicKeyRingCollection publicKeyRingCollection = getPublicKeyRingCollection();
@@ -163,7 +172,7 @@ public class Keyring {
         return keyInfos;
     }
 
-    public KeyInfo readKey(File file) throws IOException, PGPException {
+    public KeyInfo readKey(File file) throws IOException {
         final PGPPublicKeyRing pgpPublicKeys = new PGPPublicKeyRing(new ArmoredInputStream(new FileInputStream(file)), new JcaKeyFingerprintCalculator());
         final PGPPublicKey key = pgpPublicKeys.getPublicKey();
         final String keyID = String.format("%Xd", key.getKeyID());

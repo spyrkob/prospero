@@ -47,7 +47,7 @@ public class KeyringTest {
         SignatureUtils.exportPublicKeys(generatedKey, keyFile);
 
 
-        keyring.importArmoredKey(keyFile);
+        keyring.importCertificate(keyFile);
 
         final Iterator<PGPPublicKey> publicKeys = PGPainless.readKeyRing().keyRing(new FileInputStream(file.resolve("store.gpg").toFile())).getPublicKeys();
         assertTrue("New store should contain a key",
@@ -64,14 +64,14 @@ public class KeyringTest {
         final File keyFile = temp.newFile("key.gpg");
         final PGPSecretKeyRing generatedKey = SignatureUtils.generateSecretKey("Test", "test");
         SignatureUtils.exportPublicKeys(generatedKey, keyFile);
-        keyring.importArmoredKey(keyFile);
+        keyring.importCertificate(keyFile);
 
         // add new key
         final Keyring keyringTwo = new Keyring(file.resolve("store.gpg"));
         final File keyFileTwo = temp.newFile("key-two.gpg");
         final PGPSecretKeyRing generatedKeyTwo = SignatureUtils.generateSecretKey("Test 2", "test");
         SignatureUtils.exportPublicKeys(generatedKeyTwo, keyFileTwo);
-        keyringTwo.importArmoredKey(keyFileTwo);
+        keyringTwo.importCertificate(keyFileTwo);
 
 
         final PGPPublicKeyRingCollection pgpPublicKeyRings = PGPainless.readKeyRing().publicKeyRingCollection(new FileInputStream(file.resolve("store.gpg").toFile()));
@@ -100,11 +100,11 @@ public class KeyringTest {
         final PGPSecretKeyRing generatedKey = SignatureUtils.generateSecretKey("Test", "test");
         SignatureUtils.exportPublicKeys(generatedKey, keyFile);
 
-        keyring.importArmoredKey(keyFile);
+        keyring.importCertificate(keyFile);
 
         final Long revokedKeyId = SignatureUtils.exportRevocationKeys(generatedKey, revokeFile, "test");
 
-        keyring.importCertificate(revokeFile);
+        keyring.revokeCertificate(revokeFile);
 
         final PGPPublicKeyRingCollection pgpPublicKeyRings = PGPainless.readKeyRing().publicKeyRingCollection(new FileInputStream(file.resolve("store.gpg").toFile()));
         final ArrayList<PGPPublicKey> pgpPublicKeys = new ArrayList<>();
@@ -127,7 +127,7 @@ public class KeyringTest {
         try {
             System.out.println(keyring.readKey(cert));
         } catch (IOException e) {
-            keyring.importArmoredKey(cert);
+            keyring.importCertificate(cert);
         }
     }
 }
