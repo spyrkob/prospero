@@ -9,7 +9,7 @@ import org.wildfly.prospero.metadata.ProsperoMetadataUtils;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.List;
+import java.util.Collection;
 
 public class CertificateAction implements TrustedCertificateStore {
 
@@ -34,6 +34,7 @@ public class CertificateAction implements TrustedCertificateStore {
     public void removeCertificate(String certificateId) {
         // TODO: implement me
     }
+
     public void revokeCertificate(RevokeCertificate revokeCertificate) {
         try {
             keyring.revokeCertificate(revokeCertificate.getContentStream());
@@ -42,8 +43,8 @@ public class CertificateAction implements TrustedCertificateStore {
         }
     }
 
-    public List<TrustCertificate> getCertificates() {
-        return null;
+    public Collection<Keyring.KeyInfo> getCertificates() {
+        return keyring.listKeys();
     }
 
 }

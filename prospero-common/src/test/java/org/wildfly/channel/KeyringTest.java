@@ -1,9 +1,11 @@
 package org.wildfly.channel;
 
 import org.bouncycastle.openpgp.PGPPublicKey;
+import org.bouncycastle.openpgp.PGPPublicKeyRing;
 import org.bouncycastle.openpgp.PGPPublicKeyRingCollection;
 import org.bouncycastle.openpgp.PGPSecretKeyRing;
 import org.bouncycastle.util.encoders.Hex;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -16,118 +18,209 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNull;
 
 public class KeyringTest {
 
     @Rule
     public TemporaryFolder temp = new TemporaryFolder();
+    private Keyring keyring;
+    private Path file;
+
+    @Before
+    public void setUp() throws Exception {
+        file = temp.newFolder("keyring-test-folder").toPath();
+        keyring = new Keyring(file.resolve("store.gpg"));
+    }
+
+    // start of initialization tests
 
     @Test
     public void creatingKeyringWithoutKeyDoesntCreateFile() throws Exception {
-        final Path file = temp.newFolder("keyring-test-folder").toPath();
-
-        new Keyring(file.resolve("store.gpg"));
-
         assertThat(file.resolve("store.gpg"))
                 .doesNotExist();
     }
 
+    // end of initialization tests
+
+    /*
+     * start of add key tests
+     */
     @Test
     public void addKeyToKeyring() throws Exception {
-        final Path file = temp.newFolder("keyring-test-folder").toPath();
-
-        final Keyring keyring = new Keyring(file.resolve("store.gpg"));
-
-        final File keyFile = temp.newFile("key.gpg");
         final PGPSecretKeyRing generatedKey = SignatureUtils.generateSecretKey("Test", "test");
-        SignatureUtils.exportPublicKeys(generatedKey, keyFile);
+        importKeyRing(generatedKey);
 
-
-        keyring.importCertificate(keyFile);
-
-        final Iterator<PGPPublicKey> publicKeys = PGPainless.readKeyRing().keyRing(new FileInputStream(file.resolve("store.gpg").toFile())).getPublicKeys();
-        assertTrue("New store should contain a key",
-                publicKeys.hasNext());
-        assertEquals(Hex.toHexString(generatedKey.getPublicKey().getFingerprint()), Hex.toHexString(publicKeys.next().getFingerprint()));
+        assertThat(readPublicKeys())
+                .map(PGPPublicKey::getFingerprint)
+                .map(Hex::toHexString)
+                .containsExactlyElementsOf(getFingerPrints(generatedKey));
     }
 
     @Test
     public void addKeyToExistingKeyring() throws Exception {
-        final Path file = temp.newFolder("keyring-test-folder").toPath();
-
-        final Keyring keyring = new Keyring(file.resolve("store.gpg"));
-        // add initial key
-        final File keyFile = temp.newFile("key.gpg");
         final PGPSecretKeyRing generatedKey = SignatureUtils.generateSecretKey("Test", "test");
-        SignatureUtils.exportPublicKeys(generatedKey, keyFile);
-        keyring.importCertificate(keyFile);
-
-        // add new key
-        final Keyring keyringTwo = new Keyring(file.resolve("store.gpg"));
-        final File keyFileTwo = temp.newFile("key-two.gpg");
         final PGPSecretKeyRing generatedKeyTwo = SignatureUtils.generateSecretKey("Test 2", "test");
-        SignatureUtils.exportPublicKeys(generatedKeyTwo, keyFileTwo);
-        keyringTwo.importCertificate(keyFileTwo);
 
+        // add initial key
+        importKeyRing(generatedKey);
 
-        final PGPPublicKeyRingCollection pgpPublicKeyRings = PGPainless.readKeyRing().publicKeyRingCollection(new FileInputStream(file.resolve("store.gpg").toFile()));
-        assertTrue("New store should contain a key",
-                pgpPublicKeyRings.getKeyRings().hasNext());
+        // re-create Keyring to check that no caching happens
+        this.keyring = new Keyring(file.resolve("store.gpg"));
+        // and add another key
+        importKeyRing(generatedKeyTwo);
 
-        final ArrayList<PGPPublicKey> pgpPublicKeys = new ArrayList<>();
-        pgpPublicKeyRings.getKeyRings().forEachRemaining(kr->kr.getPublicKeys().forEachRemaining(pgpPublicKeys::add));
-
-        assertThat(pgpPublicKeys)
+        assertThat(readPublicKeys())
                 .map(PGPPublicKey::getFingerprint)
                 .map(Hex::toHexString)
-                .contains(
-                        Hex.toHexString(generatedKey.getPublicKey().getFingerprint()),
-                        Hex.toHexString(generatedKeyTwo.getPublicKey().getFingerprint()));
+                .containsExactlyInAnyOrderElementsOf(getFingerPrints(generatedKey, generatedKeyTwo));
     }
 
+    // TODO: add existing key throws Exception
+
+    /*
+     * end of add key tests
+     */
+
+    /*
+     * start of remove key tests
+     */
+    @Test
+    public void removeKeyFromKeyring() throws Exception {
+        final PGPSecretKeyRing generatedKey = SignatureUtils.generateSecretKey("Test", "test");
+        importKeyRing(generatedKey);
+
+        keyring.removeKey(String.format("%Xd", generatedKey.getPublicKey().getKeyID()));
+
+        assertNull("Expected the keystore file to not be present",
+                PGPainless.readKeyRing().keyRing(new FileInputStream(file.resolve("store.gpg").toFile())));
+    }
+
+    @Test
+    public void removeKeyFromKeyringWithTwoKeys() throws Exception {
+        final PGPSecretKeyRing generatedKey1 = SignatureUtils.generateSecretKey("Test", "test");
+        importKeyRing(generatedKey1);
+
+        // and import another key
+        final PGPSecretKeyRing generatedKey2 = SignatureUtils.generateSecretKey("Test", "test");
+        importKeyRing(generatedKey2);
+
+        keyring.removeKey(String.format("%Xd", generatedKey1.getPublicKey().getKeyID()));
+
+        assertThat(readPublicKeys())
+                .map(PGPPublicKey::getFingerprint)
+                .map(Hex::toHexString)
+                .containsExactlyElementsOf(getFingerPrints(generatedKey2));
+    }
+
+    // TODO: remove non existing certificate throws error
+    // TODO: remove subkey throws exception
+
+    /*
+     * end of remove key tests
+     */
+
+    /*
+     * start of import certificate tests
+     */
     @Test
     public void importRevocations() throws Exception {
-        final Path file = temp.newFolder("keyring-test-folder").toPath();
-
-        final Keyring keyring = new Keyring(file.resolve("store.gpg"));
-
-        final File keyFile = temp.newFile("key.gpg");
         final File revokeFile = temp.newFile("revoke.gpg");
         final PGPSecretKeyRing generatedKey = SignatureUtils.generateSecretKey("Test", "test");
-        SignatureUtils.exportPublicKeys(generatedKey, keyFile);
+        SignatureUtils.exportRevocationKeys(generatedKey, revokeFile, "test");
 
-        keyring.importCertificate(keyFile);
+        importKeyRing(generatedKey);
+        keyring.revokeCertificate(new FileInputStream(revokeFile));
 
-        final Long revokedKeyId = SignatureUtils.exportRevocationKeys(generatedKey, revokeFile, "test");
-
-        keyring.revokeCertificate(revokeFile);
-
-        final PGPPublicKeyRingCollection pgpPublicKeyRings = PGPainless.readKeyRing().publicKeyRingCollection(new FileInputStream(file.resolve("store.gpg").toFile()));
-        final ArrayList<PGPPublicKey> pgpPublicKeys = new ArrayList<>();
-        pgpPublicKeyRings.getKeyRings().forEachRemaining(kr->{if (pgpPublicKeyRings.contains(revokedKeyId)) { pgpPublicKeys.add(kr.getPublicKey(revokedKeyId)); }});
-        assertThat(pgpPublicKeys)
+        final List<PGPPublicKey> publicKeys = readPublicKeys();
+        assertThat(publicKeys)
                 .map(PGPPublicKey::getFingerprint)
                 .map(Hex::toHexString)
-                .contains(
-                        Hex.toHexString(generatedKey.getPublicKey().getFingerprint()));
+                .containsExactlyInAnyOrderElementsOf(getFingerPrints(generatedKey));
 
-        assertThat(pgpPublicKeys).allMatch(PGPPublicKey::hasRevocation);
+        assertThat(publicKeys).allMatch(KeyringTest::isRevoked);
     }
 
-    @Test
-    public void testMe() throws Exception {
-        final Path file = temp.newFolder("keyring-test-folder").toPath();
+    // TODO: import revocation on non-existing certificate throws exception
 
-        final Keyring keyring = new Keyring(file.resolve("store.gpg"));
-        final File cert = new File("/Users/spyrkob/workspaces/set/prospero/tmp/sig_validate/verifier/RH.gpg");
-        try {
-            System.out.println(keyring.readKey(cert));
-        } catch (IOException e) {
-            keyring.importCertificate(cert);
+    /*
+     * end of import certificate tests
+     */
+
+    /*
+     * start of get certificate tests
+     */
+
+    // TODO: get existing certificate
+    // TODO: return null when trying to get non existing certificate
+    // TODO: get subkey returns subkey
+
+    /*
+     * end of get certificate tests
+     */
+
+    /*
+     * start of list certificate tests
+     */
+
+    // TODO: get one key
+    // TODO: get multiple keys
+    // TODO: empty list if there are no keys
+
+    /*
+     * end of list certificate tests
+     */
+
+    /*
+     * start of read certificate tests
+     */
+
+    // TODO: read a certificate (key)
+    // TODO: invalid input throws exception
+
+    /*
+     * end of read certificate tests
+     */
+
+    private List<PGPPublicKey> readPublicKeys() throws IOException {
+        final List<PGPPublicKey> keyList = new ArrayList<>();
+        final PGPPublicKeyRingCollection pgpKeyRing = PGPainless.readKeyRing().publicKeyRingCollection(new FileInputStream(file.resolve("store.gpg").toFile()));
+        final Iterator<PGPPublicKeyRing> keyRings = pgpKeyRing.getKeyRings();
+        while (keyRings.hasNext()) {
+            final PGPPublicKeyRing keyRing = keyRings.next();
+            final Iterator<PGPPublicKey> publicKeys = keyRing.getPublicKeys();
+            while (publicKeys.hasNext()) {
+                final PGPPublicKey key = publicKeys.next();
+                keyList.add(key);
+            }
         }
+        return keyList;
+    }
+
+    private static List<String> getFingerPrints(PGPSecretKeyRing... generatedKeys) {
+        final List<String> fingerprintList = new ArrayList<>();
+        for (PGPSecretKeyRing generatedKey : generatedKeys) {
+            final Iterator<PGPPublicKey> publicKeys = generatedKey.getPublicKeys();
+            while (publicKeys.hasNext()) {
+                final PGPPublicKey key = publicKeys.next();
+                fingerprintList.add(Hex.toHexString(key.getFingerprint()));
+            }
+        }
+        return fingerprintList;
+    }
+
+    private static boolean isRevoked(PGPPublicKey key) {
+        // only check master keys not subkeys
+        return !key.isMasterKey() || key.hasRevocation();
+
+    }
+
+    private void importKeyRing(PGPSecretKeyRing generatedKey) throws IOException {
+        final File keyFile = temp.newFile();
+        SignatureUtils.exportPublicKeys(generatedKey, keyFile);
+        keyring.importCertificate(new FileInputStream(keyFile));
     }
 }

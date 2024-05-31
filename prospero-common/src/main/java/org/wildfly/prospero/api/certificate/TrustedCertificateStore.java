@@ -1,6 +1,8 @@
 package org.wildfly.prospero.api.certificate;
 
-import java.util.List;
+import org.wildfly.channel.Keyring;
+
+import java.util.Collection;
 
 public interface TrustedCertificateStore {
 
@@ -9,5 +11,5 @@ public interface TrustedCertificateStore {
     void removeCertificate(String certificateId);
     void revokeCertificate(RevokeCertificate revokeCertificate);
 
-    List<TrustCertificate> getCertificates();
+    Collection<Keyring.KeyInfo> getCertificates();
 }

@@ -35,6 +35,7 @@ import org.wildfly.prospero.utils.SignatureUtils;
 import org.wildfly.prospero.wfchannel.MavenSessionManager;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -252,7 +253,7 @@ public class SignatureTest {
         final ArrayList<String> addedSignatures = new ArrayList<>();
         final Keyring keyring = new Keyring(publicKeyFolder.resolve("keyring.gpg"));
         keyring.importCertificate(toList(pgpSecretKey.getPublicKeys()));
-        keyring.revokeCertificate(publicKeyFolder.resolve("revoke.gpg").toFile());
+        keyring.revokeCertificate(new FileInputStream(publicKeyFolder.resolve("revoke.gpg").toFile()));
 
         final MavenSignatureValidator signatureValidator = new MavenSignatureValidator((s)->{
             addedSignatures.add(s);

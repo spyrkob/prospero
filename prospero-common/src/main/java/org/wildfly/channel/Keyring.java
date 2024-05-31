@@ -13,6 +13,7 @@ import org.jboss.logging.Logger;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,6 +42,20 @@ public class Keyring {
 
     private PGPPublicKeyRingCollection publicKeyRingCollection;
 
+    public PGPPublicKey getKey(PGPSignature pgpSignature) {
+        final Iterator<PGPPublicKeyRing> keyRings = getPublicKeyRingCollection().getKeyRings();
+        while (keyRings.hasNext()) {
+            final PGPPublicKey publicKey = getPublicKey(pgpSignature, keyRings.next());
+            if (publicKey != null) {
+                return publicKey;
+            }
+        }
+
+        return null;
+    }
+
+
+    // used in test
     public Keyring(Path keyStoreFile) throws IOException, PGPException {
         this.keyStoreFile = keyStoreFile;
 
@@ -49,57 +64,24 @@ public class Keyring {
         }
     }
 
-    public PGPPublicKey getKey(PGPSignature pgpSignature) {
+    public void removeKey(String keyId) throws IOException {
         final Iterator<PGPPublicKeyRing> keyRings = getPublicKeyRingCollection().getKeyRings();
         while (keyRings.hasNext()) {
-            return getPublicKey(pgpSignature, keyRings.next());
-        }
-
-        return null;
-    }
-
-    private PGPPublicKey getPublicKey(PGPSignature pgpSignature, PGPPublicKeyRing pgpPublicKeyRing) {
-
-        final Iterator<PGPPublicKey> publicKeys = pgpPublicKeyRing.getPublicKeys();
-
-        if (log.isTraceEnabled()) {
-            log.tracef("Public keys in key ring%n");
+            final PGPPublicKeyRing keyRing = keyRings.next();
+            final Iterator<PGPPublicKey> publicKeys = keyRing.getPublicKeys();
             while (publicKeys.hasNext()) {
-                final PGPPublicKey pubKey = publicKeys.next();
-                if (pubKey.getUserIDs().hasNext()) {
-                    log.tracef("%s %X\n", pubKey.getUserIDs().next(), pubKey.getKeyID());
+                final PGPPublicKey next = publicKeys.next();
+                if (String.format("%Xd", next.getKeyID()).equals(keyId)) {
+                    this.publicKeyRingCollection = PGPPublicKeyRingCollection.removePublicKeyRing(publicKeyRingCollection, keyRing);
+
+                    try(FileOutputStream outStream = new FileOutputStream(keyStoreFile.toFile())) {
+                        getPublicKeyRingCollection().encode(outStream);
+                    }
+                    return;
                 }
             }
+
         }
-        if (log.isDebugEnabled()) {
-            log.debugf("KeyID used in signature: %X\n", pgpSignature.getKeyID());
-        }
-
-        return pgpPublicKeyRing.getPublicKey(pgpSignature.getKeyID());
-    }
-
-    public void importCertificate(File keyFile) throws IOException {
-        importCertificate(new FileInputStream(keyFile));
-    }
-
-    public void importCertificate(InputStream certificateStream) throws IOException {
-        final PGPPublicKeyRing pgpPublicKeyRing = new PGPPublicKeyRing(new ArmoredInputStream(certificateStream), new JcaKeyFingerprintCalculator());
-        publicKeyRingCollection = PGPPublicKeyRingCollection.addPublicKeyRing(getPublicKeyRingCollection(), pgpPublicKeyRing);
-        try(FileOutputStream outStream = new FileOutputStream(keyStoreFile.toFile())) {
-            getPublicKeyRingCollection().encode(outStream);
-        }
-    }
-
-    public void importCertificate(List<PGPPublicKey> pgpPublicKeys) throws IOException {
-        final PGPPublicKeyRing pgpPublicKeyRing = new PGPPublicKeyRing(pgpPublicKeys);
-        publicKeyRingCollection = PGPPublicKeyRingCollection.addPublicKeyRing(getPublicKeyRingCollection(), pgpPublicKeyRing);
-        try(FileOutputStream outStream = new FileOutputStream(keyStoreFile.toFile())) {
-            getPublicKeyRingCollection().encode(outStream);
-        }
-    }
-
-    public void revokeCertificate(File certificateFile) throws IOException, PGPException {
-        revokeCertificate(new FileInputStream(certificateFile));
     }
 
     public void revokeCertificate(InputStream contentStream) throws IOException, PGPException {
@@ -132,6 +114,25 @@ public class Keyring {
             getPublicKeyRingCollection().encode(outStream);
         }
 
+    }
+
+    public void importCertificate(InputStream certificateStream) throws IOException {
+        final PGPPublicKeyRing pgpPublicKeyRing = new PGPPublicKeyRing(new ArmoredInputStream(certificateStream), new JcaKeyFingerprintCalculator());
+        publicKeyRingCollection = PGPPublicKeyRingCollection.addPublicKeyRing(getPublicKeyRingCollection(), pgpPublicKeyRing);
+        try(FileOutputStream outStream = new FileOutputStream(keyStoreFile.toFile())) {
+            getPublicKeyRingCollection().encode(outStream);
+        }
+    }
+
+    // not used in test
+
+    @Deprecated
+    public void importCertificate(List<PGPPublicKey> pgpPublicKeys) throws IOException {
+        final PGPPublicKeyRing pgpPublicKeyRing = new PGPPublicKeyRing(pgpPublicKeys);
+        publicKeyRingCollection = PGPPublicKeyRingCollection.addPublicKeyRing(getPublicKeyRingCollection(), pgpPublicKeyRing);
+        try(FileOutputStream outStream = new FileOutputStream(keyStoreFile.toFile())) {
+            getPublicKeyRingCollection().encode(outStream);
+        }
     }
 
     public PGPPublicKey getKey(long keyID) {
@@ -190,6 +191,26 @@ public class Keyring {
         return new KeyInfo(keyID, status, fingerprint, identities, creationDate, expiryDate);
     }
 
+    private PGPPublicKey getPublicKey(PGPSignature pgpSignature, PGPPublicKeyRing pgpPublicKeyRing) {
+        final Iterator<PGPPublicKey> publicKeys = pgpPublicKeyRing.getPublicKeys();
+
+        if (log.isTraceEnabled()) {
+            log.tracef("Public keys in key ring%n");
+            while (publicKeys.hasNext()) {
+                final PGPPublicKey pubKey = publicKeys.next();
+                if (pubKey.getUserIDs().hasNext()) {
+                    log.tracef("%s %X\n", pubKey.getUserIDs().next(), pubKey.getKeyID());
+                }
+            }
+        }
+        if (log.isDebugEnabled()) {
+            log.debugf("KeyID used in signature: %X\n", pgpSignature.getKeyID());
+        }
+
+        return pgpPublicKeyRing.getPublicKey(pgpSignature.getKeyID());
+    }
+
+    // TODO move out
     public static class KeyInfo {
 
         private final String keyID;

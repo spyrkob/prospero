@@ -9,6 +9,7 @@ import org.wildfly.prospero.cli.commands.CliConstants;
 import org.wildfly.prospero.metadata.ProsperoMetadataUtils;
 import picocli.CommandLine;
 
+import java.io.FileInputStream;
 import java.nio.file.Path;
 import java.util.Optional;
 
@@ -32,7 +33,7 @@ public class CertificateAddCommand extends AbstractCommand {
 
         keyring.readKey(certificateFile.toAbsolutePath().toFile());
 
-        keyring.revokeCertificate(certificateFile.toAbsolutePath().toFile());
+        keyring.revokeCertificate(new FileInputStream(certificateFile.toAbsolutePath().toFile()));
         return ReturnCodes.SUCCESS;
     }
 }
