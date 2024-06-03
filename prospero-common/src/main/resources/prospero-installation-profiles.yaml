@@ -1,4 +1,18 @@
 ---
+- name: "eap-8.0"
+  galleonConfiguration: "classpath:eap-8.0-provisioning.xml"
+  channels:
+    - schemaVersion: "2.0.0"
+      name: "eap-8.0"
+      gpg-check: true
+      gpg-url: "classpath:RH.gpg"
+      repositories:
+        - id: "mrrc"
+          url: "https://maven.repository.redhat.com/ga/"
+      manifest:
+        maven:
+          groupId: "org.jboss.eap.channels"
+          artifactId: "eap-8.0"
 - name: "wildfly"
   galleonConfiguration: "classpath:wildfly-provisioning.xml"
   channels:

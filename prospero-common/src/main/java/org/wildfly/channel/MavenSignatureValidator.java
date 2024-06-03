@@ -59,7 +59,7 @@ public class MavenSignatureValidator implements SignatureValidator {
     }
 
     @Override
-    public void validateSignature(File artifact, File signature, String gpgUrl) {
+    public void validateSignature(MavenArtifact artifact, File signature, String gpgUrl) {
         if (log.isDebugEnabled()) {
             log.debugf("Verifying %s with signature %s", artifact, signature);
         }
@@ -83,7 +83,7 @@ public class MavenSignatureValidator implements SignatureValidator {
             }
         }
         if (publicKey == null) {
-            throw new SignatureValidator.SignatureException("No matching public key found");
+            throw new UntrustedArtifactException("No matching public key found", artifact, String.format("%Xd", pgpSignature.getKeyID()));
         }
 
         final Iterator<PGPSignature> subKeys = publicKey.getSignaturesOfType(PGPSignature.SUBKEY_BINDING);
@@ -110,7 +110,7 @@ public class MavenSignatureValidator implements SignatureValidator {
             throw new RuntimeException(e);
         }
 
-        verifyFile(artifact, pgpSignature);
+        verifyFile(artifact.getFile(), pgpSignature);
     }
 
     private static String getRevocationReason(PGPPublicKey publicKey) {
@@ -163,15 +163,6 @@ public class MavenSignatureValidator implements SignatureValidator {
         } catch (PGPException e) {
             throw new SignatureException("Unable to verify the file signature", e);
         }
-    }
-
-    private static String getSignatureFileUrl(MavenArtifact mavenArtifact, Repository repository) {
-        final String classifier = mavenArtifact.getClassifier()==null || mavenArtifact.getClassifier().isEmpty() ?"" : "-" + mavenArtifact.getClassifier();
-        final String signatureUrl = repository.getUrl() + "/" + mavenArtifact.getGroupId().replaceAll("\\.", "/") +
-                "/" + mavenArtifact.getArtifactId() +
-                "/" + mavenArtifact.getVersion() + "/" + mavenArtifact.getArtifactId() + "-" + mavenArtifact.getVersion() + classifier + "." +
-                mavenArtifact.getExtension() + ".asc";
-        return signatureUrl;
     }
 
     private static PGPSignature readSignatureFile(File signatureFile) {

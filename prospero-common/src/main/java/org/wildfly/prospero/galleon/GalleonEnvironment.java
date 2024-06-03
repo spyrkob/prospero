@@ -204,14 +204,23 @@ public class GalleonEnvironment implements AutoCloseable {
             signatureValidator = new MavenSignatureValidator(
                     (key)->{
                         System.out.println();
-                        System.out.println("Artifact signed with untrusted key: " + key);
-                        System.out.println("Accept y/N");
+                        System.out.println("Installing an artifact signed with untrusted key: ");
+                        System.out.println("  " + key);
+                        System.out.println("Do you want to trust this key y/N ");
                         try {
-                            System.in.read();
+                            while (true) {
+                                final char read = (char) System.in.read();
+                                if (read == 'y' || read == 'Y') {
+                                    return true;
+                                } else if (read == 'n' || read == 'N') {
+                                    return false;
+                                } else {
+                                    System.out.println("Do you want to trust this key y/N ");
+                                }
+                            }
                         } catch (IOException e) {
                             throw new RuntimeException(e);
                         }
-                        return true;
                     }, keyring);
         } catch (PGPException | IOException e) {
             throw new RuntimeException(e);

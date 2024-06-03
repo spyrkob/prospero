@@ -215,7 +215,7 @@ public class ProvisioningAction {
      * @param channels - list of channels used to resolve the Feature Packs
      * @return - list of {@code License}, or empty list if no licenses were required
      */
-    public List<License> getPendingLicenses(GalleonProvisioningConfig provisioningConfig, List<Channel> channels) throws OperationException {
+    public List<License> getPendingLicenses(GalleonProvisioningConfig provisioningConfig, List<Channel> channels) throws OperationException, ProvisioningException {
         Objects.requireNonNull(provisioningConfig);
         Objects.requireNonNull(channels);
 
@@ -235,7 +235,7 @@ public class ProvisioningAction {
         return this.keyring;
     }
 
-    private List<License> getPendingLicenses(GalleonProvisioningConfig provisioningConfig, GalleonFeaturePackAnalyzer exporter) throws OperationException {
+    private List<License> getPendingLicenses(GalleonProvisioningConfig provisioningConfig, GalleonFeaturePackAnalyzer exporter) throws OperationException, ProvisioningException {
         try {
             final Set<String> featurePacks = exporter.getFeaturePacks(installDir, provisioningConfig);
             return licenseManager.getLicenses(featurePacks);
@@ -253,7 +253,7 @@ public class ProvisioningAction {
                 // org.wildfly.channel.UnresolvedMavenArtifactException
                 throw new ArtifactResolutionException(e.getMessage(), e);
             }
-        } catch (IOException | ProvisioningException e) {
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }

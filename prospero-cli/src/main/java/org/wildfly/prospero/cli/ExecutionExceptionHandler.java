@@ -23,6 +23,7 @@ import org.jboss.galleon.ProvisioningException;
 import org.wildfly.channel.ArtifactCoordinate;
 import org.wildfly.channel.ChannelMetadataCoordinate;
 import org.wildfly.channel.Repository;
+import org.wildfly.channel.UntrustedArtifactException;
 import org.wildfly.prospero.api.ArtifactUtils;
 import org.wildfly.prospero.api.exceptions.ArtifactResolutionException;
 import org.wildfly.prospero.api.exceptions.ChannelDefinitionException;
@@ -131,8 +132,14 @@ public class ExecutionExceptionHandler implements CommandLine.IExecutionExceptio
         console.error("\n");
         final String message = ex.getMessage();
 
-        // the error coming from Galleon is not translated, so try to figure out what went wrong and show translated message
-        if (message.startsWith("Failed to parse")) {
+        if (ex.getCause() instanceof UntrustedArtifactException) {
+            UntrustedArtifactException e = (UntrustedArtifactException) ex.getCause();
+            System.out.println();
+            System.out.printf("Artifact %s was signed with an untrusted key ID %s.%n" +
+                    "Import the signer certificate to continue.%n", e.getArtifact(), e.getKeyID());
+            System.out.println();
+        } else if (message.startsWith("Failed to parse")) {
+            // the error coming from Galleon is not translated, so try to figure out what went wrong and show translated message
             String path = message.substring("Failed to parse".length()+1).trim();
             console.error(CliMessages.MESSAGES.parsingError(path));
             if (ex.getCause() instanceof XMLStreamException) {
