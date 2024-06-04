@@ -10,6 +10,7 @@ import org.bouncycastle.openpgp.PGPSignature;
 import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
 import org.eclipse.jgit.util.Hex;
 import org.jboss.logging.Logger;
+import org.wildfly.prospero.api.exceptions.OperationException;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -63,7 +64,7 @@ public class Keyring {
         }
     }
 
-    public void removeKey(String keyId) throws IOException {
+    public boolean removeKey(String keyId) throws IOException {
         final Iterator<PGPPublicKeyRing> keyRings = getPublicKeyRingCollection().getKeyRings();
         while (keyRings.hasNext()) {
             final PGPPublicKeyRing keyRing = keyRings.next();
@@ -76,11 +77,11 @@ public class Keyring {
                     try(FileOutputStream outStream = new FileOutputStream(keyStoreFile.toFile())) {
                         getPublicKeyRingCollection().encode(outStream);
                     }
-                    return;
+                    return true;
                 }
             }
-
         }
+        return false;
     }
 
     public void revokeCertificate(InputStream contentStream) throws IOException, PGPException {
@@ -115,8 +116,12 @@ public class Keyring {
 
     }
 
-    public void importCertificate(InputStream certificateStream) throws IOException {
+    public void importCertificate(InputStream certificateStream) throws IOException, OperationException {
         final PGPPublicKeyRing pgpPublicKeyRing = new PGPPublicKeyRing(new ArmoredInputStream(certificateStream), new JcaKeyFingerprintCalculator());
+        if (getKey(pgpPublicKeyRing.getPublicKey().getKeyID()) != null) {
+            throw new DuplicatedCertificateException("The certificate with key ID " + pgpPublicKeyRing.getPublicKey().getKeyID() + " is already imported.",
+                    pgpPublicKeyRing.getPublicKey().getKeyID());
+        }
         publicKeyRingCollection = PGPPublicKeyRingCollection.addPublicKeyRing(getPublicKeyRingCollection(), pgpPublicKeyRing);
         try(FileOutputStream outStream = new FileOutputStream(keyStoreFile.toFile())) {
             getPublicKeyRingCollection().encode(outStream);

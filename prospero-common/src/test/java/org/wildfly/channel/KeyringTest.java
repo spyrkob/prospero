@@ -10,17 +10,22 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.pgpainless.PGPainless;
+import org.wildfly.prospero.api.exceptions.OperationException;
 import org.wildfly.prospero.utils.SignatureUtils;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 
 public class KeyringTest {
@@ -79,7 +84,22 @@ public class KeyringTest {
                 .containsExactlyInAnyOrderElementsOf(getFingerPrints(generatedKey, generatedKeyTwo));
     }
 
-    // TODO: add existing key throws Exception
+    @Test
+    public void addExistingKeyAgain_ThrowsException() throws Exception {
+        final PGPSecretKeyRing generatedKey = SignatureUtils.generateSecretKey("Test", "test");
+
+        // add initial key
+        importKeyRing(generatedKey);
+
+        // try to add another key
+        assertThatThrownBy(()-> importKeyRing(generatedKey))
+                .isInstanceOf(DuplicatedCertificateException.class);
+
+        assertThat(readPublicKeys())
+                .map(PGPPublicKey::getFingerprint)
+                .map(Hex::toHexString)
+                .containsExactlyInAnyOrderElementsOf(getFingerPrints(generatedKey));
+    }
 
     /*
      * end of add key tests
@@ -116,7 +136,37 @@ public class KeyringTest {
                 .containsExactlyElementsOf(getFingerPrints(generatedKey2));
     }
 
-    // TODO: remove non existing certificate throws error
+    @Test
+    public void removeKeyFromEmptyStore_ReturnsFalse() throws Exception {
+        final PGPSecretKeyRing generatedKey1 = SignatureUtils.generateSecretKey("Test", "test");
+
+        assertFalse("Removing non-existing cert should return false",
+                keyring.removeKey(String.format("%Xd", generatedKey1.getPublicKey().getKeyID())));
+
+        assertThat(readPublicKeys())
+                .map(PGPPublicKey::getFingerprint)
+                .map(Hex::toHexString)
+                .isEmpty();
+    }
+
+    @Test
+    public void removeNonExistingKey_ReturnsFalse() throws Exception {
+        final PGPSecretKeyRing generatedKey1 = SignatureUtils.generateSecretKey("Test", "test");
+
+        importKeyRing(generatedKey1);
+
+        // and import another key
+        final PGPSecretKeyRing generatedKey2 = SignatureUtils.generateSecretKey("Test", "test");
+
+        assertFalse("Removing non-existing cert should return false",
+                keyring.removeKey(String.format("%Xd", generatedKey2.getPublicKey().getKeyID())));
+
+        assertThat(readPublicKeys())
+                .map(PGPPublicKey::getFingerprint)
+                .map(Hex::toHexString)
+                .containsExactlyInAnyOrderElementsOf(getFingerPrints(generatedKey1));
+    }
+
     // TODO: remove subkey throws exception
 
     /*
@@ -187,6 +237,9 @@ public class KeyringTest {
 
     private List<PGPPublicKey> readPublicKeys() throws IOException {
         final List<PGPPublicKey> keyList = new ArrayList<>();
+        if (!Files.exists(file.resolve("store.gpg"))) {
+            return Collections.emptyList();
+        }
         final PGPPublicKeyRingCollection pgpKeyRing = PGPainless.readKeyRing().publicKeyRingCollection(new FileInputStream(file.resolve("store.gpg").toFile()));
         final Iterator<PGPPublicKeyRing> keyRings = pgpKeyRing.getKeyRings();
         while (keyRings.hasNext()) {
@@ -218,7 +271,7 @@ public class KeyringTest {
 
     }
 
-    private void importKeyRing(PGPSecretKeyRing generatedKey) throws IOException {
+    private void importKeyRing(PGPSecretKeyRing generatedKey) throws IOException, OperationException {
         final File keyFile = temp.newFile();
         SignatureUtils.exportPublicKeys(generatedKey, keyFile);
         keyring.importCertificate(new FileInputStream(keyFile));

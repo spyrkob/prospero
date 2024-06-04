@@ -133,11 +133,13 @@ public class ExecutionExceptionHandler implements CommandLine.IExecutionExceptio
         final String message = ex.getMessage();
 
         if (ex.getCause() instanceof UntrustedArtifactException) {
-            UntrustedArtifactException e = (UntrustedArtifactException) ex.getCause();
-            System.out.println();
-            System.out.printf("Artifact %s was signed with an untrusted key ID %s.%n" +
-                    "Import the signer certificate to continue.%n", e.getArtifact(), e.getKeyID());
-            System.out.println();
+//            UntrustedArtifactException e = (UntrustedArtifactException) ex.getCause();
+//            System.out.println();
+//            System.out.printf("Artifact %s was signed with an untrusted key ID %s.%n" +
+//                    "Import the signer certificate to continue.%n", e.getArtifact(), e.getKeyID());
+//            System.out.println();
+            console.error(CliMessages.MESSAGES.errorHeader(ex.getCause().getLocalizedMessage()));
+            console.error("If you wish to proceed, please review your trusted certificates.");
         } else if (message.startsWith("Failed to parse")) {
             // the error coming from Galleon is not translated, so try to figure out what went wrong and show translated message
             String path = message.substring("Failed to parse".length()+1).trim();

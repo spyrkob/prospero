@@ -82,8 +82,12 @@ public class MavenSignatureValidator implements SignatureValidator {
                 }
             }
         }
+        final String artifactGav = String.format("%s:%s:%s", artifact.getGroupId(), artifact.getArtifactId(), artifact.getVersion());
+        final String keyID = String.format("%Xd", pgpSignature.getKeyID());
         if (publicKey == null) {
-            throw new UntrustedArtifactException("No matching public key found", artifact, String.format("%Xd", pgpSignature.getKeyID()));
+            throw new UntrustedArtifactException(String.format("No matching trusted certificate found to verify signature of artifact %s. Required key ID %s",
+                    pgpSignature.getKeyID(), artifactGav)
+                    , artifact, keyID);
         }
 
         final Iterator<PGPSignature> subKeys = publicKey.getSignaturesOfType(PGPSignature.SUBKEY_BINDING);
@@ -91,14 +95,16 @@ public class MavenSignatureValidator implements SignatureValidator {
             final PGPSignature subKey = subKeys.next();
             final PGPPublicKey masterKey = keyring.getKey(subKey.getKeyID());
             if (masterKey.hasRevocation()) {
-                throw new SignatureValidator.SignatureException(String.format("Key %Xd has been revoked: %s.",
-                        publicKey.getKeyID(), getRevocationReason(masterKey)));
+                throw new UntrustedArtifactException(String.format("The certificate (key ID %s) used to sign artifact %s has been revoked with message:%n%s.",
+                        artifactGav, keyID, getRevocationReason(masterKey)),
+                        artifact, keyID);
             }
         }
 
         if (publicKey.hasRevocation()) {
-            throw new SignatureValidator.SignatureException(String.format("Key %Xd has been revoked: %s.",
-                    publicKey.getKeyID(), getRevocationReason(publicKey)));
+            throw new UntrustedArtifactException(String.format("The certificate (key ID %s) used to sign artifact %s has been revoked with message:%n%s.",
+                    artifactGav, keyID, getRevocationReason(publicKey)),
+                    artifact, keyID);
         }
 
         if (log.isDebugEnabled()) {

@@ -5,6 +5,7 @@ import org.wildfly.channel.Keyring;
 import org.wildfly.prospero.api.certificate.RevokeCertificate;
 import org.wildfly.prospero.api.certificate.TrustCertificate;
 import org.wildfly.prospero.api.certificate.TrustedCertificateStore;
+import org.wildfly.prospero.api.exceptions.OperationException;
 import org.wildfly.prospero.metadata.ProsperoMetadataUtils;
 
 import java.io.IOException;
@@ -22,7 +23,7 @@ public class CertificateAction implements TrustedCertificateStore {
         keyring = new Keyring(installationDir.resolve(ProsperoMetadataUtils.METADATA_DIR).resolve("keyring.gpg"));
     }
 
-    public void importCertificate(TrustCertificate trustCertificate) {
+    public void importCertificate(TrustCertificate trustCertificate) throws OperationException {
         try {
             keyring.importCertificate(trustCertificate.getContentStream());
         } catch (IOException e) {
