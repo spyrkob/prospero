@@ -24,6 +24,7 @@ import org.wildfly.channel.ArtifactCoordinate;
 import org.wildfly.channel.ChannelMetadataCoordinate;
 import org.wildfly.channel.Repository;
 import org.wildfly.channel.UntrustedArtifactException;
+import org.wildfly.channel.spi.SignatureValidator;
 import org.wildfly.prospero.api.ArtifactUtils;
 import org.wildfly.prospero.api.exceptions.ArtifactResolutionException;
 import org.wildfly.prospero.api.exceptions.ChannelDefinitionException;
@@ -140,6 +141,8 @@ public class ExecutionExceptionHandler implements CommandLine.IExecutionExceptio
 //            System.out.println();
             console.error(CliMessages.MESSAGES.errorHeader(ex.getCause().getLocalizedMessage()));
             console.error("If you wish to proceed, please review your trusted certificates.");
+        } else if (ex.getCause() instanceof SignatureValidator.SignatureException) {
+            console.error(CliMessages.MESSAGES.errorHeader(ex.getCause().getLocalizedMessage()));
         } else if (message.startsWith("Failed to parse")) {
             // the error coming from Galleon is not translated, so try to figure out what went wrong and show translated message
             String path = message.substring("Failed to parse".length()+1).trim();

@@ -43,6 +43,7 @@ import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Function;
 
 public class MavenSignatureValidator implements SignatureValidator {
@@ -83,10 +84,10 @@ public class MavenSignatureValidator implements SignatureValidator {
             }
         }
         final String artifactGav = String.format("%s:%s:%s", artifact.getGroupId(), artifact.getArtifactId(), artifact.getVersion());
-        final String keyID = String.format("%Xd", pgpSignature.getKeyID());
+        final String keyID = Long.toHexString(pgpSignature.getKeyID()).toUpperCase(Locale.ROOT);
         if (publicKey == null) {
             throw new UntrustedArtifactException(String.format("No matching trusted certificate found to verify signature of artifact %s. Required key ID %s",
-                    pgpSignature.getKeyID(), artifactGav)
+                    artifactGav, keyID)
                     , artifact, keyID);
         }
 
@@ -108,7 +109,7 @@ public class MavenSignatureValidator implements SignatureValidator {
         }
 
         if (log.isDebugEnabled()) {
-            log.debugf("The ID of the selected key is %X\n", publicKey.getKeyID());
+            log.debugf("The ID of the selected key is %s\n", keyID);
         }
         try {
             pgpSignature.init(new BcPGPContentVerifierBuilderProvider(), publicKey);
@@ -116,7 +117,7 @@ public class MavenSignatureValidator implements SignatureValidator {
             throw new RuntimeException(e);
         }
 
-        verifyFile(artifact.getFile(), pgpSignature);
+        verifyFile(artifact, pgpSignature);
     }
 
     private static String getRevocationReason(PGPPublicKey publicKey) {
@@ -144,12 +145,12 @@ public class MavenSignatureValidator implements SignatureValidator {
         return sb.toString();
     }
 
-    private static void verifyFile(File mavenArtifact, PGPSignature pgpSignature) {
+    private static void verifyFile(MavenArtifact mavenArtifact, PGPSignature pgpSignature) {
         // Read file to verify
         byte[] data = new byte[1024];
         InputStream inputStream = null;
         try {
-            inputStream = new DataInputStream(new BufferedInputStream(new FileInputStream(mavenArtifact)));
+            inputStream = new DataInputStream(new BufferedInputStream(new FileInputStream(mavenArtifact.getFile())));
             while (true) {
                 int bytesRead = inputStream.read(data, 0, 1024);
                 if (bytesRead == -1)
@@ -164,7 +165,8 @@ public class MavenSignatureValidator implements SignatureValidator {
         // Verify the signature
         try {
             if (!pgpSignature.verify()) {
-                throw new SignatureException("The file and its signature don't match");
+                throw new SignatureException(String.format("The signature for artifact %s:%s:%s is invalid. The artifact might be corrupted or tampered with.",
+                        mavenArtifact.getGroupId(), mavenArtifact.getArtifactId(), mavenArtifact.getVersion()));
             }
         } catch (PGPException e) {
             throw new SignatureException("Unable to verify the file signature", e);

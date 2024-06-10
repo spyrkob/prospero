@@ -19,7 +19,7 @@ public class CertificateAddCommand extends AbstractCommand {
     @CommandLine.Option(names = CliConstants.DIR)
     private Optional<Path> installationDir;
 
-    @CommandLine.Option(names = "certificate", required = true)
+    @CommandLine.Option(names = "--certificate", required = true)
     private Path certificateFile;
 
     public CertificateAddCommand(CliConsole console, ActionFactory actionFactory) {
@@ -33,7 +33,7 @@ public class CertificateAddCommand extends AbstractCommand {
 
         keyring.readKey(certificateFile.toAbsolutePath().toFile());
 
-        keyring.revokeCertificate(new FileInputStream(certificateFile.toAbsolutePath().toFile()));
+        keyring.importCertificate(new FileInputStream(certificateFile.toAbsolutePath().toFile()));
         return ReturnCodes.SUCCESS;
     }
 }

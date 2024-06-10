@@ -1,11 +1,15 @@
 package org.wildfly.prospero.cli.commands.certificate;
 
+import org.wildfly.channel.Keyring;
 import org.wildfly.prospero.cli.ActionFactory;
 import org.wildfly.prospero.cli.CliConsole;
+import org.wildfly.prospero.cli.ReturnCodes;
 import org.wildfly.prospero.cli.commands.AbstractCommand;
 import org.wildfly.prospero.cli.commands.CliConstants;
+import org.wildfly.prospero.metadata.ProsperoMetadataUtils;
 import picocli.CommandLine;
 
+import java.io.FileInputStream;
 import java.nio.file.Path;
 import java.util.Optional;
 
@@ -19,10 +23,10 @@ public class CertificateRemoveCommand  extends AbstractCommand {
     private CertificateOptions certificateOptions;
 
     static class CertificateOptions {
-        @CommandLine.Option(names = "name")
+        @CommandLine.Option(names = "--key-id")
         private String certificateName;
 
-        @CommandLine.Option(names = "revoke-certificate")
+        @CommandLine.Option(names = "--revoke-certificate")
         private Path revokeCertificatePath;
     }
 
@@ -32,6 +36,14 @@ public class CertificateRemoveCommand  extends AbstractCommand {
 
     @Override
     public Integer call() throws Exception {
-        return null;
+        final Path serverDir = determineInstallationDirectory(installationDir);
+        final Keyring keyring = new Keyring(serverDir.resolve(ProsperoMetadataUtils.METADATA_DIR).resolve("keyring.gpg"));
+
+        if (certificateOptions.certificateName != null) {
+            keyring.removeKey(certificateOptions.certificateName);
+        } else {
+            keyring.revokeCertificate(new FileInputStream(certificateOptions.revokeCertificatePath.toFile()));
+        }
+        return ReturnCodes.SUCCESS;
     }
 }

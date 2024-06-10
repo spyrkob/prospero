@@ -22,6 +22,7 @@ import org.jboss.galleon.ProvisioningException;
 import org.jboss.logging.Logger;
 import org.wildfly.channel.Channel;
 import org.wildfly.channel.ChannelManifest;
+import org.wildfly.channel.Keyring;
 import org.wildfly.channel.UnresolvedMavenArtifactException;
 import org.wildfly.prospero.ProsperoLogger;
 import org.wildfly.prospero.api.ArtifactChange;
@@ -152,7 +153,8 @@ class PrepareCandidateAction implements AutoCloseable {
                 manifestRecord);
 
         try {
-            final GalleonFeaturePackAnalyzer galleonFeaturePackAnalyzer = new GalleonFeaturePackAnalyzer(galleonEnv.getChannels(), mavenSessionManager);
+            final GalleonFeaturePackAnalyzer galleonFeaturePackAnalyzer = new GalleonFeaturePackAnalyzer(galleonEnv.getChannels(), mavenSessionManager,
+                    new Keyring(installDir.resolve(ProsperoMetadataUtils.METADATA_DIR).resolve("keyring.gpg")));
             galleonFeaturePackAnalyzer.cacheGalleonArtifacts(targetDir, provisioningConfig);
         } catch (Exception e) {
             throw new RuntimeException(e);

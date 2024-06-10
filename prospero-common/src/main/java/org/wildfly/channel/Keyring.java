@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 
 public class Keyring {
 
@@ -71,7 +72,7 @@ public class Keyring {
             final Iterator<PGPPublicKey> publicKeys = keyRing.getPublicKeys();
             while (publicKeys.hasNext()) {
                 final PGPPublicKey next = publicKeys.next();
-                if (String.format("%Xd", next.getKeyID()).equals(keyId)) {
+                if (Long.toHexString(next.getKeyID()).equalsIgnoreCase(keyId)) {
                     this.publicKeyRingCollection = PGPPublicKeyRingCollection.removePublicKeyRing(publicKeyRingCollection, keyRing);
 
                     try(FileOutputStream outStream = new FileOutputStream(keyStoreFile.toFile())) {
@@ -159,8 +160,8 @@ public class Keyring {
             final Iterator<PGPPublicKey> publicKeys = keyRing.getPublicKeys();
             while (publicKeys.hasNext()) {
                 final PGPPublicKey key = publicKeys.next();
-                final String keyID = String.format("%Xd", key.getKeyID());
-                final String fingerprint = Hex.toHexString(key.getFingerprint());
+                final String keyID = Long.toHexString(key.getKeyID()).toUpperCase(Locale.ROOT);
+                final String fingerprint = Hex.toHexString(key.getFingerprint()).toUpperCase(Locale.ROOT);
                 final Iterator<String> userIDs = key.getUserIDs();
                 final ArrayList<String> tmpUserIds = new ArrayList<>();
                 while (userIDs.hasNext()) {
@@ -180,8 +181,8 @@ public class Keyring {
     public KeyInfo readKey(File file) throws IOException {
         final PGPPublicKeyRing pgpPublicKeys = new PGPPublicKeyRing(new ArmoredInputStream(new FileInputStream(file)), new JcaKeyFingerprintCalculator());
         final PGPPublicKey key = pgpPublicKeys.getPublicKey();
-        final String keyID = String.format("%Xd", key.getKeyID());
-        final String fingerprint = Hex.toHexString(key.getFingerprint());
+        final String keyID = Long.toHexString(key.getKeyID()).toUpperCase(Locale.ROOT);
+        final String fingerprint = Hex.toHexString(key.getFingerprint()).toUpperCase(Locale.ROOT);
         final Iterator<String> userIDs = key.getUserIDs();
         final ArrayList<String> tmpUserIds = new ArrayList<>();
         while (userIDs.hasNext()) {

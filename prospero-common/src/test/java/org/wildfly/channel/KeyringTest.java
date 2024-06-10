@@ -113,7 +113,7 @@ public class KeyringTest {
         final PGPSecretKeyRing generatedKey = SignatureUtils.generateSecretKey("Test", "test");
         importKeyRing(generatedKey);
 
-        keyring.removeKey(String.format("%Xd", generatedKey.getPublicKey().getKeyID()));
+        keyring.removeKey(Long.toHexString(generatedKey.getPublicKey().getKeyID()));
 
         assertNull("Expected the keystore file to not be present",
                 PGPainless.readKeyRing().keyRing(new FileInputStream(file.resolve("store.gpg").toFile())));
@@ -128,7 +128,7 @@ public class KeyringTest {
         final PGPSecretKeyRing generatedKey2 = SignatureUtils.generateSecretKey("Test", "test");
         importKeyRing(generatedKey2);
 
-        keyring.removeKey(String.format("%Xd", generatedKey1.getPublicKey().getKeyID()));
+        keyring.removeKey(Long.toHexString(generatedKey1.getPublicKey().getKeyID()));
 
         assertThat(readPublicKeys())
                 .map(PGPPublicKey::getFingerprint)
@@ -141,7 +141,7 @@ public class KeyringTest {
         final PGPSecretKeyRing generatedKey1 = SignatureUtils.generateSecretKey("Test", "test");
 
         assertFalse("Removing non-existing cert should return false",
-                keyring.removeKey(String.format("%Xd", generatedKey1.getPublicKey().getKeyID())));
+                keyring.removeKey(Long.toHexString(generatedKey1.getPublicKey().getKeyID())));
 
         assertThat(readPublicKeys())
                 .map(PGPPublicKey::getFingerprint)
@@ -159,7 +159,7 @@ public class KeyringTest {
         final PGPSecretKeyRing generatedKey2 = SignatureUtils.generateSecretKey("Test", "test");
 
         assertFalse("Removing non-existing cert should return false",
-                keyring.removeKey(String.format("%Xd", generatedKey2.getPublicKey().getKeyID())));
+                keyring.removeKey(Long.toHexString(generatedKey2.getPublicKey().getKeyID())));
 
         assertThat(readPublicKeys())
                 .map(PGPPublicKey::getFingerprint)

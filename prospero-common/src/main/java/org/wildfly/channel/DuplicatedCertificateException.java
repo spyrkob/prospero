@@ -12,6 +12,6 @@ public class DuplicatedCertificateException extends OperationException {
     }
 
     public String getKeyID() {
-        return String.format("%Xd", keyID);
+        return Long.toHexString(keyID);
     }
 }
