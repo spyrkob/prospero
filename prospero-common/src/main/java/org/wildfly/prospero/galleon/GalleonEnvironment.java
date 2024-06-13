@@ -33,8 +33,9 @@ import org.wildfly.channel.ChannelMetadataCoordinate;
 import org.wildfly.channel.ChannelSession;
 import org.wildfly.channel.InvalidChannelMetadataException;
 import org.wildfly.channel.Keyring;
-import org.wildfly.channel.MavenSignatureValidator;
+import org.wildfly.channel.LocalKeystore;
 import org.wildfly.channel.UnresolvedMavenArtifactException;
+import org.wildfly.channel.gpg.GpgSignatureValidator;
 import org.wildfly.channel.maven.VersionResolverFactory;
 import org.wildfly.channel.spi.MavenVersionsResolver;
 import org.wildfly.channel.spi.SignatureValidator;
@@ -200,31 +201,27 @@ public class GalleonEnvironment implements AutoCloseable {
 
     private static SignatureValidator getSignatureValidator(Keyring keyring) {
         final SignatureValidator signatureValidator;
-        try {
-            signatureValidator = new MavenSignatureValidator(
-                    (key)->{
-                        System.out.println();
-                        System.out.println("Installing an artifact signed with untrusted key: ");
-                        System.out.println("  " + key);
-                        System.out.println("Do you want to trust this key y/N ");
-                        try {
-                            while (true) {
-                                final char read = (char) System.in.read();
-                                if (read == 'y' || read == 'Y') {
-                                    return true;
-                                } else if (read == 'n' || read == 'N') {
-                                    return false;
-                                } else {
-                                    System.out.println("Do you want to trust this key y/N ");
-                                }
+        signatureValidator = new GpgSignatureValidator(new LocalKeystore(
+                (key)->{
+                    System.out.println();
+                    System.out.println("Installing an artifact signed with untrusted key: ");
+                    System.out.println("  " + key);
+                    System.out.println("Do you want to trust this key y/N ");
+                    try {
+                        while (true) {
+                            final char read = (char) System.in.read();
+                            if (read == 'y' || read == 'Y') {
+                                return true;
+                            } else if (read == 'n' || read == 'N') {
+                                return false;
+                            } else {
+                                System.out.println("Do you want to trust this key y/N ");
                             }
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
                         }
-                    }, keyring);
-        } catch (PGPException | IOException e) {
-            throw new RuntimeException(e);
-        }
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }, keyring));
         return signatureValidator;
     }
 
@@ -252,7 +249,7 @@ public class GalleonEnvironment implements AutoCloseable {
                         c.getBlocklistCoordinate(),
                         c.getNoStreamStrategy(),
                         c.isGpgCheck(),
-                        c.getGpgUrl()))
+                        c.getGpgUrls()))
                 .collect(Collectors.toList());
         return channels;
     }

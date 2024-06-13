@@ -14,14 +14,8 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.codehaus.plexus</groupId>
-            <artifactId>plexus-archiver</artifactId>
-            <version>4.9.2</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.bouncycastle</groupId>
-            <artifactId>bcpg-jdk18on</artifactId>
+            <groupId>org.wildfly.channel</groupId>
+            <artifactId>gpg-validator</artifactId>
         </dependency>
         <dependency>
             <groupId>org.wildfly.installation-manager</groupId>
@@ -140,13 +134,11 @@
         <dependency>
             <groupId>org.pgpainless</groupId>
             <artifactId>pgpainless-core</artifactId>
-            <version>1.6.1</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.pgpainless</groupId>
             <artifactId>pgpainless-sop</artifactId>
-            <version>1.6.1</version>
             <scope>test</scope>
         </dependency>
 
