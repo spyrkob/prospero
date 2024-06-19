@@ -102,6 +102,16 @@
 
         <dependency>
             <groupId>org.wildfly.channel</groupId>
+            <artifactId>gpg-validator</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.wildfly.channel</groupId>
             <artifactId>maven-resolver</artifactId>
             <exclusions>
                 <exclusion>
