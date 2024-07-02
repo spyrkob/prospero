@@ -234,6 +234,7 @@ public class ApplyUpdateTest extends CliTestBase  {
                     .execute()
                     .assertReturnCode(ReturnCodes.PROCESSING_ERROR)
                     .assertErrorContains("java.nio.file.AccessDeniedException");
+//            new ApplyCandidateAction(targetDir.toPath(), updatePath).applyUpdate(ApplyCandidateAction.Type.UPDATE);
         } finally {
             lockPath(protectedPath, true);
         }
