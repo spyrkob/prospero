@@ -243,7 +243,7 @@ public class TestInstallation {
                 CliConstants.Commands.UPDATE, CliConstants.Commands.PREPARE,
                 CliConstants.YES,
                 CliConstants.DIR, serverRoot.toAbsolutePath().toString(),
-                CliConstants.CANDIDATE_DIR, serverRoot.toAbsolutePath().toString());
+                CliConstants.CANDIDATE_DIR, candidate.toAbsolutePath().toString());
 
         Collections.addAll(argList, args);
 
@@ -253,7 +253,18 @@ public class TestInstallation {
                 .assertReturnCode(ReturnCodes.SUCCESS);
     }
 
-    public void apply() {
+    public void apply(Path candidatePath) throws Exception {
+        final ArrayList<String> argList = new ArrayList<>();
+        Collections.addAll(argList,
+                CliConstants.Commands.UPDATE, CliConstants.Commands.APPLY,
+                CliConstants.YES,
+                CliConstants.DIR, serverRoot.toAbsolutePath().toString(),
+                CliConstants.CANDIDATE_DIR, candidatePath.toAbsolutePath().toString());
+
+        ExecutionUtils.prosperoExecution(argList.toArray(new String[]{}))
+                .withTimeLimit(10, TimeUnit.MINUTES)
+                .execute()
+                .assertReturnCode(ReturnCodes.SUCCESS);
     }
 
     /**

@@ -3,6 +3,7 @@ package org.wildfly.prospero.it.cli;
 import static org.wildfly.prospero.test.TestLocalRepository.GALLEON_PLUGINS_VERSION;
 
 import java.net.URL;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -71,6 +72,18 @@ public class UpdateToVersionTest extends CliTestBase {
         testInstallation.update("--version=test-channel::1.0.0");
 
         testInstallation.verifyModuleJar("commons-io", "commons-io", COMMONS_IO_VERSION);
+        testInstallation.verifyInstallationMetadataPresent();
+    }
+
+    @Test
+    public void updateWithPrepareApplyServerToNonLatestVersion() throws Exception {
+        testInstallation.install("org.test:pack-one:1.0.0", List.of(testChannel), CliConstants.VERSION, "test-channel::1.0.0");
+
+        final Path candidatePath = temp.newFolder("candidate").toPath();
+        testInstallation.prepareUpdate(candidatePath, CliConstants.VERSION, "test-channel::1.0.1");
+        testInstallation.apply(candidatePath);
+
+        testInstallation.verifyModuleJar("commons-io", "commons-io", bump(COMMONS_IO_VERSION));
         testInstallation.verifyInstallationMetadataPresent();
     }
 
