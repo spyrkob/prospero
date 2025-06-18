@@ -17,10 +17,13 @@
 
 package org.wildfly.prospero.installation.git;
 
+import org.eclipse.jgit.api.ArchiveCommand;
 import org.eclipse.jgit.api.ResetCommand;
+import org.eclipse.jgit.archive.ZipFormat;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.util.SystemReader;
+import org.jboss.galleon.util.ZipUtils;
 import org.wildfly.channel.Channel;
 import org.wildfly.channel.ChannelManifest;
 import org.wildfly.prospero.ProsperoLogger;
@@ -43,6 +46,7 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.wildfly.channel.Stream;
 import org.wildfly.prospero.model.ProsperoConfig;
 
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -296,32 +300,17 @@ public class GitStorage implements AutoCloseable {
             throw ProsperoLogger.ROOT_LOGGER.unableToParseConfiguration(change, e);
         } finally {
             try {
-                deleteWithRetry(change);
-                deleteWithRetry(base);
+                delete(change);
+                delete(base);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         }
     }
 
-    private static void deleteWithRetry(Path repo) throws IOException {
-        int retryCount = 0;
+    private static void delete(Path repo) throws IOException {
         while (repo != null && Files.exists(repo)) {
-            try {
-                FileUtils.deleteDirectory(repo.toFile());
-            } catch (IOException e) {
-                // Sometimes on Windows the file lock is not released straight away
-                if (retryCount++ < 4) {
-                    ProsperoLogger.ROOT_LOGGER.tracef(e, "Unable to delete temporary config in %s, attempt nr %d/3", repo, retryCount);
-                    try {
-                        Thread.sleep(500);
-                    } catch (InterruptedException ex) {
-                        throw new RuntimeException(ex);
-                    }
-                } else {
-                    throw e;
-                }
-            }
+            FileUtils.deleteDirectory(repo.toFile());
         }
     }
 
@@ -373,19 +362,26 @@ public class GitStorage implements AutoCloseable {
         return !isRepositoryEmpty(git);
     }
 
+    static {
+        ArchiveCommand.registerFormat("zip", new ZipFormat());
+    }
+
     private Path checkoutPastState(SavedState savedState, String fileName) throws GitAPIException, IOException {
         Path hist = Files.createTempDirectory("hist");
-        try (Git temp =  Git.cloneRepository()
-                    .setDirectory(hist.toFile())
-                    .setRemote("origin")
-                    .setURI(base.toUri().toString())
-                    .call()) {
-            temp.checkout()
-                    .setStartPoint(savedState.getName())
-                    .addPath(fileName)
-                    .call();
-            return hist;
-        }
+
+        // we need to get historical data from git, but we don't really want to change currently checkout state
+        // so we're gonna use archive operation to export the files we want
+        // TODO: try to do this without the need for zip/unzip round-trip
+        git.archive()
+                .setOutputStream(new FileOutputStream(hist.resolve("archive.zip").toFile()))
+                .setFormat("zip")
+                .setPaths(fileName)
+                .setTree(git.getRepository().resolve(savedState.getName()))
+                .call()
+                .close();
+
+        ZipUtils.unzip(hist.resolve("archive.zip"), hist);
+        return hist;
     }
 
     interface Parser<T> {
